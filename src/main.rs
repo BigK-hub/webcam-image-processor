@@ -303,6 +303,8 @@ enum Mode
     Threshold,
     GaussianBlur,
     BoxBlur,
+    Painting,
+    CrossBlur,
 }
 
 struct Window
@@ -350,6 +352,8 @@ impl olc::PGEApplication for Window
             Mode::Threshold => self.frame.threshold(&mut self.target, pge.get_mouse_x() as u8 / 3),
             Mode::GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
             Mode::BoxBlur => self.frame.box_blur(&mut self.target, 5),
+            Mode::Painting => self.frame.painting(&mut self.target),
+            Mode::CrossBlur => self.frame.cross_blur(&mut self.target),
         };
         
         for y in 0..pge.screen_height()
