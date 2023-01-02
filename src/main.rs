@@ -2,6 +2,7 @@ use olc_pge as olc;
 use fastrand;
 use camera_capture;
 
+
 #[derive(Clone)]
 struct Image
 {
@@ -310,6 +311,7 @@ enum Mode
 struct Window
 {
     cam_iter: camera_capture::ImageIterator,
+    counter: u32,
     mode: Mode,
     frame: Image,
     target: Image,
@@ -355,7 +357,30 @@ impl olc::PGEApplication for Window
             Mode::Painting => self.frame.painting(&mut self.target),
             Mode::CrossBlur => self.frame.cross_blur(&mut self.target),
         };
-        
+
+        if pge.get_key(olc::Key::S).pressed
+        {
+            let path = String::from("image") + &self.counter.to_string() + ".png";
+            let file = std::fs::File::create(std::path::Path::new(&path)).unwrap();
+            self.counter += 1;
+            let ref mut w = std::io::BufWriter::new(file);
+            let mut encoder = png::Encoder::new(w, self.frame.width as u32, self.frame.height as u32); 
+            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_depth(png::BitDepth::Eight);
+            encoder.set_source_gamma(png::ScaledFloat::from_scaled(45455)); // 1.0 / 2.2, scaled by 100000
+            encoder.set_source_gamma(png::ScaledFloat::new(1.0 / 2.2));     // 1.0 / 2.2, unscaled, but rounded
+            let source_chromaticities = png::SourceChromaticities::new
+            (     // Using unscaled instantiation here
+                    (0.31270, 0.32900),
+                    (0.64000, 0.33000),
+                    (0.30000, 0.60000),
+                    (0.15000, 0.06000)
+            );
+            encoder.set_source_chromaticities(source_chromaticities);
+            let mut writer = encoder.write_header().unwrap();
+            writer.write_image_data(&self.target.pixels.iter().map(|p| [p.r, p.g, p.b, p.a]).flatten().collect::<Vec<u8>>()).unwrap();
+        }
+
         for y in 0..pge.screen_height()
         {
             for x in 0..pge.screen_width()
@@ -383,6 +408,6 @@ fn main()
     let frame = Image{width,height,pixels: pixels.clone()};
     let mode = Mode::Sobel;
     
-    let window = Window{cam_iter, mode, target: frame.clone(), temp: frame.clone(), frame};
+    let window = Window{cam_iter, counter: 0, mode, target: frame.clone(), temp: frame.clone(), frame};
     olc::PixelGameEngine::construct(window, width, height, 4, 4).start();
 }
