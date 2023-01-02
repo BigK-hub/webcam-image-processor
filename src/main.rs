@@ -13,13 +13,13 @@ struct Image
 trait Illuminator
 {
     type Output;
-    fn brightness(&mut self) -> Self::Output;
+    fn brightness(&self) -> Self::Output;
 }
 
 impl Illuminator for olc::Pixel
 {
     type Output = u8; 
-    fn brightness(&mut self) -> Self::Output
+    fn brightness(&self) -> Self::Output
     {
         let mut value = 0;
         value += self.r as u32 * 299 / 1000;
@@ -37,7 +37,16 @@ impl Illuminator for olc::Pixel
 
 impl Image
 {
-    fn at(&mut self, x: usize, y: usize) -> &mut olc::Pixel
+    fn at(&self, x: usize, y: usize) -> &olc::Pixel
+    {
+        if x >= self.width || y >= self.height
+        {
+            panic!("in function at() of Image, pixel coordinates exceed image dimensions.");
+        }
+        &self.pixels[y*self.width+x]
+    }
+
+    fn at_mut(&mut self, x: usize, y: usize) -> &mut olc::Pixel
     {
         if x >= self.width || y >= self.height
         {
@@ -65,15 +74,23 @@ impl Image
                     }
                 }
 
-                *target.at(x, y) = olc::Pixel::rgb(r as u8, g as u8, b as u8);
+                *target.at_mut(x, y) = olc::Pixel::rgb(r as u8, g as u8, b as u8);
             }
         }
     }
 
-    fn sobel_edge_detection_3x3(&mut self, target: &mut Image)
+    fn painting(&self, target: &mut Image)
     {
-        let S_X: [i32;9] = [1, 0, -1, 2, 0, -2, 1, 0, -1];
-        let S_Y: [i32;9] = [1, 2, 1, 0, 0, 0, -1, -2, -1];
+        let S_Y = 
+        [2, 1,-2,
+        1,-3, 1,
+       -2, 1, 2];
+   
+        let S_X = 
+        [-2, 1, 2,
+        1,-3, 1,
+        2, 1,-2];
+
         for y in 0..self.height
         {
             for x in 0..self.width
@@ -81,7 +98,7 @@ impl Image
                 if !(1..self.width-1).contains(&x)
                 || !(1..self.height-1).contains(&y)
                 {
-                    *target.at(x, y) = olc::BLACK;
+                    *target.at_mut(x, y) = olc::BLACK;
                     continue;
                 }
                 let at_top_left =      self.at(x - 1,   y - 1   ).brightness();
@@ -103,10 +120,59 @@ impl Image
                                 (S_Y[6] * at_bottom_left as i32) + (S_Y[7] * at_bottom_middle as i32) + (S_Y[8] * at_bottom_right as i32);    
 
                 let gradient: u8 = ((grad_x * grad_x + grad_y * grad_y)as f32).sqrt() as u8 ; 
-                *target.at(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
+                *target.at_mut(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
             }                   
         }
     }
+
+    fn sobel_edge_detection_3x3(&mut self, target: &mut Image)
+    {
+        let S_Y = 
+        [2, 1,-2,
+        1,-3, 1,
+       -2, 1, 2];
+   
+        let S_X = 
+        [-2, 1, 2,
+        1,-3, 1,
+        2, 1,-2];
+
+        let S_X: [i32;9] = [1, 0, -1, 2, 0, -2, 1, 0, -1];
+        let S_Y: [i32;9] = [1, 2, 1, 0, 0, 0, -1, -2, -1];
+        for y in 0..self.height
+        {
+            for x in 0..self.width
+            {
+                if !(1..self.width-1).contains(&x)
+                || !(1..self.height-1).contains(&y)
+                {
+                    *target.at_mut(x, y) = olc::BLACK;
+                    continue;
+                }
+                let at_top_left =      self.at(x - 1,   y - 1   ).brightness();
+                let at_top_middle =    self.at(x,       y - 1   ).brightness();
+                let at_top_right =     self.at(x + 1,   y - 1   ).brightness();
+                let at_left =          self.at(x - 1,   y       ).brightness();
+                let at_middle =        self.at(x,       y       ).brightness();
+                let at_right =         self.at(x + 1,   y       ).brightness();
+                let at_bottom_left =   self.at(x - 1,   y + 1   ).brightness();
+                let at_bottom_middle=  self.at(x,       y + 1   ).brightness();
+                let at_bottom_right =  self.at(x + 1,   y + 1   ).brightness();
+
+                let grad_x = (S_X[0] * at_top_left as i32) + (S_X[1] * at_top_middle as i32) + (S_X[2] * at_top_right as i32)+
+                                (S_X[3] * at_left as i32) + (S_X[4] * at_middle as i32) + (S_X[5] * at_right as i32)+
+                                (S_X[6] * at_bottom_left as i32) + (S_X[7] * at_bottom_middle as i32) + (S_X[8] * at_bottom_right as i32);
+
+                let grad_y = (S_Y[0] * at_top_left as i32) + (S_Y[1] * at_top_middle as i32) + (S_Y[2] * at_top_right as i32)+
+                                (S_Y[3] * at_left as i32) + (S_Y[4] * at_middle as i32) + (S_Y[5] * at_right as i32)+
+                                (S_Y[6] * at_bottom_left as i32) + (S_Y[7] * at_bottom_middle as i32) + (S_Y[8] * at_bottom_right as i32);    
+
+                let gradient: u8 = ((grad_x * grad_x + grad_y * grad_y)as f32).sqrt() as u8 ; 
+                *target.at_mut(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
+            }                   
+        }
+    }
+
     fn threshold(&mut self, target: &mut Image, threshold: u8)
     {
         for y in 0..self.height
@@ -114,7 +180,7 @@ impl Image
             for x in 0..self.width
             {
                 let brt = self.at(x,y).brightness();
-                *target.at(x,y) = if brt >= threshold {olc::WHITE} else {olc::BLACK};
+                *target.at_mut(x,y) = if brt >= threshold {olc::WHITE} else {olc::BLACK};
             }
         }
     }
@@ -126,9 +192,9 @@ impl Image
             for x in 0..self.width
             {
                 let p = self.at(x,y);
-                target.at(x,y).r = (p.r >= threshold) as u8 * 255;
-                target.at(x,y).g = (p.g >= threshold) as u8 * 255;
-                target.at(x,y).b = (p.b >= threshold) as u8 * 255;
+                target.at_mut(x,y).r = (p.r >= threshold) as u8 * 255;
+                target.at_mut(x,y).g = (p.g >= threshold) as u8 * 255;
+                target.at_mut(x,y).b = (p.b >= threshold) as u8 * 255;
             }
         }
     }
@@ -155,7 +221,7 @@ impl Image
                 if !(1..self.width-1).contains(&x)
                 || !(1..self.height-1).contains(&y)
                 {
-                    *target.at(x, y) = olc::BLACK;
+                    *target.at_mut(x, y) = olc::BLACK;
                     continue;
                 }
                 let mut rx = 0;
@@ -184,7 +250,7 @@ impl Image
                 let r = ((rx*rx + ry*ry) as f32).sqrt() as u8;
                 let g = ((gx*gx + gy*gy) as f32).sqrt() as u8;
                 let b = ((bx*bx + by*by) as f32).sqrt() as u8;
-                *target.at(x, y) = olc::Pixel::rgb(r, g, b);
+                *target.at_mut(x, y) = olc::Pixel::rgb(r, g, b);
             }                   
         }
     }
@@ -221,7 +287,7 @@ impl Image
                                 (S_Y[6] * at_bottom_left as i32) + (S_Y[7] * at_bottom_middle as i32) + (S_Y[8] * at_bottom_right as i32);    
 
                 let gradient: u8 = ((grad_x * grad_x + grad_y * grad_y) as f32).sqrt() as u8; 
-                *target.at(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
+                *target.at_mut(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
             }
         }
     }
