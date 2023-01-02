@@ -305,6 +305,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "flate2"
 version = "1.0.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -315,6 +316,8 @@ dependencies = [
 ]
 
 [[package]]
+=======
+>>>>>>> 351890d73ac6bed7fa02ee4bdd29a8acc917c694
 name = "gcc"
 version = "0.3.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -471,6 +474,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
+<<<<<<< HEAD
 name = "lerp"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -480,6 +484,8 @@ dependencies = [
 ]
 
 [[package]]
+=======
+>>>>>>> 351890d73ac6bed7fa02ee4bdd29a8acc917c694
 name = "libc"
 version = "0.2.139"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -579,6 +585,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "miniz_oxide"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -588,6 +595,8 @@ dependencies = [
 ]
 
 [[package]]
+=======
+>>>>>>> 351890d73ac6bed7fa02ee4bdd29a8acc917c694
 name = "nix"
 version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -759,6 +768,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "png"
 version = "0.17.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -771,6 +781,8 @@ dependencies = [
 ]
 
 [[package]]
+=======
+>>>>>>> 351890d73ac6bed7fa02ee4bdd29a8acc917c694
 name = "proc-macro2"
 version = "1.0.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -994,9 +1006,13 @@ version = "0.1.0"
 dependencies = [
  "camera_capture",
  "fastrand",
+<<<<<<< HEAD
  "lerp",
  "olc-pge",
  "png 0.17.7",
+=======
+ "olc-pge",
+>>>>>>> 351890d73ac6bed7fa02ee4bdd29a8acc917c694
 ]
 
 [[package]]
