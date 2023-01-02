@@ -1,0 +1,14 @@
+[package]
+name = "two_fella_project"
+version = "0.1.0"
+edition = "2021"
+
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+olc-pge = "0.1.2"
+fastrand = "1.8.0"
+camera_capture = "0.5.0"
+lerp = "0.4.0"
+png = "0.17.7"
