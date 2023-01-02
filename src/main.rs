@@ -2,6 +2,7 @@ use olc_pge as olc;
 use fastrand;
 use camera_capture;
 
+#[derive(Clone)]
 struct Image
 {
     width:usize,
@@ -187,6 +188,43 @@ impl Image
             }                   
         }
     }
+
+    fn cross_blur(&mut self, target: &mut Image)
+    {
+        let S_Y =  [   -1, 1,-1,
+                                 1, 0, 1,
+                                -1, 1, -1];
+        let S_X = [   1, -1, 1,
+                               -1, 1, -1,
+                                1, -1,1];
+        
+        for y in 1..self.height - 1
+        {
+            for x in 1..self.width - 1
+            {
+                let at_top_left =      self.at(x - 1,   y - 1   ).brightness();
+                let at_top_middle =    self.at(x,       y - 1   ).brightness();
+                let at_top_right =     self.at(x + 1,   y - 1   ).brightness();
+                let at_left =          self.at(x - 1,   y       ).brightness();
+                let at_middle =        self.at(x,       y       ).brightness();
+                let at_right =         self.at(x + 1,   y       ).brightness();
+                let at_bottom_left =   self.at(x - 1,   y + 1   ).brightness();
+                let at_bottom_middle=  self.at(x,       y + 1   ).brightness();
+                let at_bottom_right =  self.at(x + 1,   y + 1   ).brightness();
+
+                let grad_x= (S_X[0] * at_top_left as i32) + (S_X[1] * at_top_middle as i32) + (S_X[2] * at_top_right as i32)+
+                                (S_X[3] * at_left as i32) + (S_X[4] * at_middle as i32) + (S_X[5] * at_right as i32)+
+                                (S_X[6] * at_bottom_left as i32) + (S_X[7] * at_bottom_middle as i32) + (S_X[8] * at_bottom_right as i32);
+
+                let grad_y = (S_Y[0] * at_top_left as i32) + (S_Y[1] * at_top_middle as i32) + (S_Y[2] * at_top_right as i32)+
+                                (S_Y[3] * at_left as i32) + (S_Y[4] * at_middle as i32) + (S_Y[5] * at_right as i32)+
+                                (S_Y[6] * at_bottom_left as i32) + (S_Y[7] * at_bottom_middle as i32) + (S_Y[8] * at_bottom_right as i32);    
+
+                let gradient: u8 = ((grad_x * grad_x + grad_y * grad_y) as f32).sqrt() as u8; 
+                *target.at(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
+            }
+        }
+    }
 }
 
 #[derive(PartialEq)]
@@ -207,11 +245,11 @@ struct Window
     mode: Mode,
     frame: Image,
     target: Image,
+    temp: Image,
 }
 
 impl Window
 {
-
 }
 
 impl olc::PGEApplication for Window
@@ -266,13 +304,15 @@ fn main()
     let h = cam_iter.next().unwrap();
     let width = h.width() as usize / 2;
     let height = h.height() as usize / 2;
+    
     let cam = camera_capture::create(0).unwrap();
     let cam_iter = cam.fps(30.0).unwrap().resolution(width as u32, height as u32).unwrap().start().unwrap();
+
     let mut pixels = Vec::with_capacity(width* height);
     pixels.resize(width*height, olc::MAGENTA);
     let frame = Image{width,height,pixels: pixels.clone()};
-    let target = Image{width, height, pixels};
     let mode = Mode::Sobel;
-    let window = Window{cam_iter, mode, frame, target};
+    
+    let window = Window{cam_iter, mode, target: frame.clone(), temp: frame.clone(), frame};
     olc::PixelGameEngine::construct(window, width, height, 4, 4).start();
 }
