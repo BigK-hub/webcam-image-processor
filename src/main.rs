@@ -2,8 +2,6 @@ use olc_pge as olc;
 use fastrand;
 use camera_capture;
 use lerp::Lerp;
-use std::ops::Div;
-use std::string;
 use png;
 
 #[derive(Clone)]
@@ -131,14 +129,14 @@ impl Image
 
     fn sobel_edge_detection_3x3(&mut self, target: &mut Image)
     {   
-        let S_Y =  [   -1, 1,-1,
-                                 1, 0, 1,
-                                -1, 1, -1];
-        let S_X = [   1, -1, 1,
-                               -1, 1, -1,
-                                1, -1,1];
+        let S_Y =  [   1, 2, 1,
+                                 0, 0, 0,
+                                -1,-2,-1];
+        let S_X = [   -1, 0, 1,
+                                -2, 0, 2,
+                                -1, 0, 1];
         
-        for y in 1..self.height - 1
+        for y in 0..self.height
         {
             for x in 0..self.width
             {
@@ -340,7 +338,6 @@ impl olc::PGEApplication for Window
     fn on_user_update(&mut self, pge: &mut olc::PixelGameEngine, delta: f32) -> bool
     {
         let img = self.cam_iter.next().unwrap();
-        let fraction = (5,10);
         for (i, pixel) in img.pixels().enumerate()
         {
             let p = olc::Pixel::rgb
