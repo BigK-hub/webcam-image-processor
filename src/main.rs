@@ -316,40 +316,6 @@ impl Image
     }
 }
 
-    fn to_array(image: &mut Image) -> Vec<u8> 
-    {
-        let mut data = Vec::new();
-        for  pixel in &image.pixels
-        {
-            data.push(pixel.r);
-            data.push(pixel.g);
-            data.push(pixel.b);
-            data.push(pixel.a);
-        }
-        return data;
-    }
-    // fn threshold(&mut self, threshold: u8)
-    // {
-    //     for y in 0..self.frame.height
-    //     {
-    //         for x in 0..self.frame.width
-    //         {
-    //             let brightness = 
-    //                 (self.frame.at(x,y).r as f32 * 0.299) +
-    //                 (self.frame.at(x,y).g as f32 * 0.587) +
-    //                 (self.frame.at(x,y).b as f32 * 0.114);
-
-    //             *self.target.at(x,y) = 
-    //                 if brightness as u8 >= threshold
-    //                 {olc::WHITE}
-    //                 else
-    //                 {olc::BLACK};
-    //         }
-    //     }
-    // }
-
-}
-
 impl olc::PGEApplication for Window
 {
     const APP_NAME: &'static str = "mhm aha";
