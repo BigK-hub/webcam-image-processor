@@ -28,12 +28,6 @@ impl Illuminator for olc::Pixel
         value += self.g as u32 * 587 / 1000;
         value += self.b as u32 * 114 / 1000;
         value as u8
-        /*
-            let mut value = self.r as f32 * 0.299;
-            value += self.g as f32 * 0.587;
-            value += self.b as f32 * 0.114;
-            value as u8
-        */
     }
 }
 
@@ -57,7 +51,7 @@ impl Image
         &mut self.pixels[y*self.width+x]
     }
 
-    fn convolve<F>(&mut self, target: &mut Image, kernel_size: usize, mut kernel_generator: F) where F: FnMut(usize, (usize, usize)) -> f32
+    fn convolve<F>(&self, target: &mut Image, kernel_size: usize, mut kernel_generator: F) where F: FnMut(usize, (usize, usize)) -> f32
     {
         for y in kernel_size/2..self.height - kernel_size/2
         {
@@ -127,7 +121,7 @@ impl Image
         }
     }
 
-    fn sobel_edge_detection_3x3(&mut self, target: &mut Image)
+    fn sobel_edge_detection_3x3(&self, target: &mut Image)
     {   
         let S_Y =  [   1, 2, 1,
                                  0, 0, 0,
@@ -184,7 +178,7 @@ impl Image
         }
     }
 
-    fn threshold(&mut self, target: &mut Image, threshold: u8)
+    fn threshold(&self, target: &mut Image, threshold: u8)
     {
         for y in 0..self.height
         {
@@ -196,7 +190,7 @@ impl Image
         }
     }
 
-    fn threshold_colour(&mut self, target: &mut Image, threshold: u8)
+    fn threshold_colour(&self, target: &mut Image, threshold: u8)
     {
         for y in 0..self.height
         {
@@ -210,17 +204,32 @@ impl Image
         }
     }
 
-    fn gaussian_blur_3x3(&mut self, target: &mut Image)
+    fn brightness_interpolation(&self, target: &mut Image, dark_colour: olc::Pixel, bright_colour: olc::Pixel)
+    {
+        for y in 0..self.height
+        {
+            for x in 0..self.width
+            {
+                let value = self.at(x,y).brightness() as f32 / 255.0;
+                let r = (dark_colour.r as f32).lerp(bright_colour.r as f32, value);
+                let g = (dark_colour.g as f32).lerp(bright_colour.g as f32, value);
+                let b = (dark_colour.b as f32).lerp(bright_colour.b as f32, value);
+                *target.at_mut(x,y) = olc::Pixel::rgb(r as u8, g as u8, b as u8);
+            }
+        }
+    }
+
+    fn gaussian_blur_3x3(&self, target: &mut Image)
     {
         self.convolve(target, 3, |s, (x,y)| [1./16., 1./8., 1./16., 1./8., 1./4., 1./8., 1./16., 1./8., 1./16.][y*s+x]);
     }
 
-    fn box_blur(&mut self, target: &mut Image, kernel_size: usize)
+    fn box_blur(&self, target: &mut Image, kernel_size: usize)
     {
         self.convolve(target, kernel_size, |s, (_x, _y)| 1.0/ (s * s ) as f32);
     }
 
-    fn sobel_edge_detection_3x3_colour(&mut self, target: &mut Image)
+    fn sobel_edge_detection_3x3_colour(&self, target: &mut Image)
     {
         const S_X: [i32;9] = [1,0,-1,2,0,-2,1,0,-1];
         const S_Y: [i32;9]  = [1,2,1,0,0,0,-1,-2,-1];
@@ -266,7 +275,7 @@ impl Image
         }
     }
 
-    fn cross_blur(&mut self, target: &mut Image)
+    fn cross_blur(&self, target: &mut Image)
     {
         let S_Y =  [   -1, 1,-1,
                                  1, 0, 1,
@@ -304,14 +313,15 @@ impl Image
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 enum Mode
 {
     Normal,
-    TimeBlend,
     Sobel,
     SobelColour,
     Threshold,
+    ThresholdColour,
+    InterpolateColour,
     GaussianBlur,
     BoxBlur,
     Painting,
@@ -352,16 +362,25 @@ impl olc::PGEApplication for Window
         //process frame
         match self.mode
         {
-            Mode::Normal => (),
+            Mode::Normal => {std::mem::swap(&mut self.frame, &mut self.target);},
             Mode::Sobel => self.frame.sobel_edge_detection_3x3(&mut self.target),
             Mode::SobelColour => self.frame.sobel_edge_detection_3x3_colour(&mut self.target),
-            Mode::TimeBlend => unimplemented!(),
             Mode::Threshold => self.frame.threshold(&mut self.target, pge.get_mouse_x() as u8 / 3),
+            Mode::ThresholdColour => self.frame.threshold_colour(&mut self.target, 100),
+            Mode::InterpolateColour => self.frame.brightness_interpolation(&mut self.target, olc::Pixel::rgb(255, 200, 200), olc::Pixel::rgb(200, 255, 255)),
             Mode::GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
             Mode::BoxBlur => self.frame.box_blur(&mut self.target, 5),
             Mode::Painting => self.frame.painting(&mut self.target),
             Mode::CrossBlur => self.frame.cross_blur(&mut self.target),
         };
+
+        if pge.get_key(olc::Key::M).pressed
+        {
+            unsafe
+            {
+                self.mode = std::mem::transmute::<u8, Mode>((self.mode.clone() as u8 + 1) % 9);
+            }
+        }
 
         if pge.get_key(olc::Key::S).pressed
         {
