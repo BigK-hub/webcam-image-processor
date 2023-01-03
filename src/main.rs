@@ -2,13 +2,9 @@ use olc_pge as olc;
 use fastrand;
 use camera_capture;
 use lerp::Lerp;
-use std::borrow::Borrow;
 use std::ops::Div;
 use std::string;
 use png;
-use std::path::Path;
-use std::fs::File;
-use std::io::BufWriter;
 
 #[derive(Clone)]
 struct Image
@@ -134,27 +130,7 @@ impl Image
     }
 
     fn sobel_edge_detection_3x3(&mut self, target: &mut Image)
-    {
-        /*
-        other kernel ideas:
-
-            [    2,  1,  1,
-                 1,  0, -1,
-                -1, -1, -2];
-            [    1, 1, 2,
-                -1, 0, 1,
-                 -2,-1,-1];
-
-            ____________
-            paimting
-            [    2, 1,-2,
-                 1,-3, 1,
-                -2, 1, 2];
-            [   -2, 1, 2,
-                 1,-3, 1,
-                 2, 1,-2];
-        */
-        
+    {   
         let S_Y =  [   -1, 1,-1,
                                  1, 0, 1,
                                 -1, 1, -1];
@@ -162,7 +138,7 @@ impl Image
                                -1, 1, -1,
                                 1, -1,1];
         
-        for y in 1..self.frame.height - 1
+        for y in 1..self.height - 1
         {
             for x in 0..self.width
             {
@@ -182,13 +158,27 @@ impl Image
                 let at_bottom_middle=  self.at(x,       y + 1   ).brightness();
                 let at_bottom_right =  self.at(x + 1,   y + 1   ).brightness();
 
-                let grad_x = (S_X[0] * at_top_left as i32) + (S_X[1] * at_top_middle as i32) + (S_X[2] * at_top_right as i32)+
-                                (S_X[3] * at_left as i32) + (S_X[4] * at_middle as i32) + (S_X[5] * at_right as i32)+
-                                (S_X[6] * at_bottom_left as i32) + (S_X[7] * at_bottom_middle as i32) + (S_X[8] * at_bottom_right as i32);
+                let grad_x =
+                (S_X[0] * at_top_left as i32) +
+                (S_X[1] * at_top_middle as i32) +
+                (S_X[2] * at_top_right as i32) +
+                (S_X[3] * at_left as i32) +
+                (S_X[4] * at_middle as i32) +
+                (S_X[5] * at_right as i32) +
+                (S_X[6] * at_bottom_left as i32) +
+                (S_X[7] * at_bottom_middle as i32) +
+                (S_X[8] * at_bottom_right as i32);
 
-                let grad_y = (S_Y[0] * at_top_left as i32) + (S_Y[1] * at_top_middle as i32) + (S_Y[2] * at_top_right as i32)+
-                                (S_Y[3] * at_left as i32) + (S_Y[4] * at_middle as i32) + (S_Y[5] * at_right as i32)+
-                                (S_Y[6] * at_bottom_left as i32) + (S_Y[7] * at_bottom_middle as i32) + (S_Y[8] * at_bottom_right as i32);    
+                let grad_y =
+                (S_Y[0] * at_top_left as i32) +
+                (S_Y[1] * at_top_middle as i32) +
+                (S_Y[2] * at_top_right as i32) +
+                (S_Y[3] * at_left as i32) +
+                (S_Y[4] * at_middle as i32) +
+                (S_Y[5] * at_right as i32) +
+                (S_Y[6] * at_bottom_left as i32) +
+                (S_Y[7] * at_bottom_middle as i32) +
+                (S_Y[8] * at_bottom_right as i32);    
 
                 let gradient: u8 = ((grad_x * grad_x + grad_y * grad_y)as f32).sqrt() as u8 ; 
                 *target.at_mut(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
@@ -316,6 +306,30 @@ impl Image
     }
 }
 
+#[derive(PartialEq)]
+enum Mode
+{
+    Normal,
+    TimeBlend,
+    Sobel,
+    SobelColour,
+    Threshold,
+    GaussianBlur,
+    BoxBlur,
+    Painting,
+    CrossBlur,
+}
+
+struct Window
+{
+    cam_iter: camera_capture::ImageIterator,
+    counter: u32,
+    mode: Mode,
+    frame: Image,
+    target: Image,
+    temp: Image,
+}
+
 impl olc::PGEApplication for Window
 {
     const APP_NAME: &'static str = "mhm aha";
@@ -372,7 +386,7 @@ impl olc::PGEApplication for Window
             );
             encoder.set_source_chromaticities(source_chromaticities);
             let mut writer = encoder.write_header().unwrap();
-            writer.write_image_data(&Window::to_array(&mut self.target)).unwrap();
+            writer.write_image_data(&self.target.pixels.iter().map(|p| [p.r,p.g,p.b,p.a]).flatten().collect::<Vec<u8>>()).unwrap();
         }
 
         for y in 0..pge.screen_height()
