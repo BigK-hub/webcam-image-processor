@@ -10,8 +10,6 @@ use std::path::Path;
 use std::fs::File;
 use std::io::BufWriter;
 
-
-
 #[derive(Clone)]
 struct Image
 {
@@ -20,9 +18,43 @@ struct Image
     pixels: Vec<olc::Pixel>
 }
 
+trait Illuminator
+{
+    type Output;
+    fn brightness(&self) -> Self::Output;
+}
+
+impl Illuminator for olc::Pixel
+{
+    type Output = u8; 
+    fn brightness(&self) -> Self::Output
+    {
+        let mut value = 0;
+        value += self.r as u32 * 299 / 1000;
+        value += self.g as u32 * 587 / 1000;
+        value += self.b as u32 * 114 / 1000;
+        value as u8
+        /*
+            let mut value = self.r as f32 * 0.299;
+            value += self.g as f32 * 0.587;
+            value += self.b as f32 * 0.114;
+            value as u8
+        */
+    }
+}
+
 impl Image
 {
-    fn at(&mut self, x: usize, y: usize) -> &mut olc::Pixel
+    fn at(&self, x: usize, y: usize) -> &olc::Pixel
+    {
+        if x >= self.width || y >= self.height
+        {
+            panic!("in function at() of Image, pixel coordinates exceed image dimensions.");
+        }
+        &self.pixels[y*self.width+x]
+    }
+
+    fn at_mut(&mut self, x: usize, y: usize) -> &mut olc::Pixel
     {
         if x >= self.width || y >= self.height
         {
@@ -30,31 +62,32 @@ impl Image
         }
         &mut self.pixels[y*self.width+x]
     }
-}
 
-#[derive(PartialEq)]
-enum Mode
-{
-    Normal,
-    TimeBlend,
-    Sobel,
-    FonkySobel,
-    Threshold,
-}
+    fn convolve<F>(&mut self, target: &mut Image, kernel_size: usize, mut kernel_generator: F) where F: FnMut(usize, (usize, usize)) -> f32
+    {
+        for y in kernel_size/2..self.height - kernel_size/2
+        {
+            for x in kernel_size/2..self.width - kernel_size/2
+            {
+                let (mut r,mut g,mut b) = (0.0, 0.0, 0.0);
+                for kernel_y in 0..kernel_size
+                {
+                    for kernel_x in 0..kernel_size
+                    {
+                        let kernel_value = kernel_generator(kernel_size, (kernel_x, kernel_y));
+                        let pixel = *self.at(x - kernel_size/2 + kernel_x, y - kernel_size/2 + kernel_y);
+                        r += pixel.r as f32 * kernel_value;
+                        g += pixel.g as f32 * kernel_value;
+                        b += pixel.b as f32 * kernel_value;
+                    }
+                }
 
-struct Window
-{
-    cam_iter: camera_capture::ImageIterator,
-    mode: Mode,
-    frame: Image,
-    target: Image,
-    temp: Image,
-    counter: u32,
-}
-impl Window
-{
-    /// writes to target
-    fn painting(&mut self)
+                *target.at_mut(x, y) = olc::Pixel::rgb(r as u8, g as u8, b as u8);
+            }
+        }
+    }
+
+    fn painting(&self, target: &mut Image)
     {
         let S_Y = 
         [2, 1,-2,
@@ -65,232 +98,255 @@ impl Window
         [-2, 1, 2,
         1,-3, 1,
         2, 1,-2];
-        
-        for y in 1..self.frame.height - 1
+
+        for y in 0..self.height
         {
-            for x in 1..self.frame.width - 1
+            for x in 0..self.width
             {
-                let at_top_left =      *self.frame.at(x - 1,   y - 1   );
-                let at_top_middle =    *self.frame.at(x,       y - 1   );
-                let at_top_right =     *self.frame.at(x + 1,   y - 1   );
-                let at_left =          *self.frame.at(x - 1,   y       );
-                let at_middle =        *self.frame.at(x,       y       );
-                let at_right =         *self.frame.at(x + 1,   y       );
-                let at_bottom_left =   *self.frame.at(x - 1,   y + 1   );
-                let at_bottom_middle=  *self.frame.at(x,       y + 1   );
-                let at_bottom_right =  *self.frame.at(x + 1,   y + 1   );
+                if !(1..self.width-1).contains(&x)
+                || !(1..self.height-1).contains(&y)
+                {
+                    *target.at_mut(x, y) = olc::BLACK;
+                    continue;
+                }
+                let at_top_left =      self.at(x - 1,   y - 1   ).brightness();
+                let at_top_middle =    self.at(x,       y - 1   ).brightness();
+                let at_top_right =     self.at(x + 1,   y - 1   ).brightness();
+                let at_left =          self.at(x - 1,   y       ).brightness();
+                let at_middle =        self.at(x,       y       ).brightness();
+                let at_right =         self.at(x + 1,   y       ).brightness();
+                let at_bottom_left =   self.at(x - 1,   y + 1   ).brightness();
+                let at_bottom_middle=  self.at(x,       y + 1   ).brightness();
+                let at_bottom_right =  self.at(x + 1,   y + 1   ).brightness();
 
-                let grad_x: f32 = (S_X[0] as f32 * at_top_left.r as f32) + (S_X[1] as f32 * at_top_middle.r as f32) + (S_X[2] as f32 * at_top_right.r as f32)+
-                                (S_X[3] as f32 * at_left.r as f32) + (S_X[4] as f32 * at_middle.r as f32) + (S_X[5] as f32 * at_right.r as f32)+
-                                (S_X[6] as f32 * at_bottom_left.r as f32) + (S_X[7] as f32 * at_bottom_middle.r as f32) + (S_X[8] as f32 * at_bottom_right.r as f32);
+                let grad_x = (S_X[0] * at_top_left as i32) + (S_X[1] * at_top_middle as i32) + (S_X[2] * at_top_right as i32)+
+                                (S_X[3] * at_left as i32) + (S_X[4] * at_middle as i32) + (S_X[5] * at_right as i32)+
+                                (S_X[6] * at_bottom_left as i32) + (S_X[7] * at_bottom_middle as i32) + (S_X[8] * at_bottom_right as i32);
 
-                let grad_y: f32 = (S_Y[0] as f32 * at_top_left.r as f32) + (S_Y[1] as f32 * at_top_middle.r as f32) + (S_Y[2] as f32 * at_top_right.r as f32)+
-                                (S_Y[3] as f32 * at_left.r as f32) + (S_Y[4] as f32 * at_middle.r as f32) + (S_Y[5] as f32 * at_right.r as f32)+
-                                (S_Y[6] as f32 * at_bottom_left.r as f32) + (S_Y[7] as f32 * at_bottom_middle.r as f32) + (S_Y[8] as f32 * at_bottom_right.r as f32);    
+                let grad_y = (S_Y[0] * at_top_left as i32) + (S_Y[1] * at_top_middle as i32) + (S_Y[2] * at_top_right as i32)+
+                                (S_Y[3] * at_left as i32) + (S_Y[4] * at_middle as i32) + (S_Y[5] * at_right as i32)+
+                                (S_Y[6] * at_bottom_left as i32) + (S_Y[7] * at_bottom_middle as i32) + (S_Y[8] * at_bottom_right as i32);    
 
-                let gradient: u8 = (grad_x * grad_x + grad_y * grad_y).sqrt() as u8 ; 
-                *self.target.at(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
-            }
-        }
-    }
-
-    fn cross_blur(&mut self)
-    {
-        let S_Y =  [   -1, 1,-1,
-                                 1, 0, 1,
-                                -1, 1, -1];
-        let S_X = [   1, -1, 1,
-                               -1, 1, -1,
-                                1, -1,1];
-        
-        for y in 1..self.frame.height - 1
-        {
-            for x in 1..self.frame.width - 1
-            {
-                let at_top_left =      *self.frame.at(x - 1,   y - 1   );
-                let at_top_middle =    *self.frame.at(x,       y - 1   );
-                let at_top_right =     *self.frame.at(x + 1,   y - 1   );
-                let at_left =          *self.frame.at(x - 1,   y       );
-                let at_middle =        *self.frame.at(x,       y       );
-                let at_right =         *self.frame.at(x + 1,   y       );
-                let at_bottom_left =   *self.frame.at(x - 1,   y + 1   );
-                let at_bottom_middle=  *self.frame.at(x,       y + 1   );
-                let at_bottom_right =  *self.frame.at(x + 1,   y + 1   );
-
-                let grad_x: f32 = (S_X[0] as f32 * at_top_left.r as f32) + (S_X[1] as f32 * at_top_middle.r as f32) + (S_X[2] as f32 * at_top_right.r as f32)+
-                                (S_X[3] as f32 * at_left.r as f32) + (S_X[4] as f32 * at_middle.r as f32) + (S_X[5] as f32 * at_right.r as f32)+
-                                (S_X[6] as f32 * at_bottom_left.r as f32) + (S_X[7] as f32 * at_bottom_middle.r as f32) + (S_X[8] as f32 * at_bottom_right.r as f32);
-
-                let grad_y: f32 = (S_Y[0] as f32 * at_top_left.r as f32) + (S_Y[1] as f32 * at_top_middle.r as f32) + (S_Y[2] as f32 * at_top_right.r as f32)+
-                                (S_Y[3] as f32 * at_left.r as f32) + (S_Y[4] as f32 * at_middle.r as f32) + (S_Y[5] as f32 * at_right.r as f32)+
-                                (S_Y[6] as f32 * at_bottom_left.r as f32) + (S_Y[7] as f32 * at_bottom_middle.r as f32) + (S_Y[8] as f32 * at_bottom_right.r as f32);    
-
-                let gradient: u8 = (grad_x * grad_x + grad_y * grad_y).sqrt() as u8 ; 
-                *self.temp.at(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
-            }
-        }
-    }
-    
-    fn sobel_edge_detection_fonky(&mut self)
-    {
-   
-        let S_Y =  [   -1, 1,-1,
-                                 1, 0, 1,
-                                -1, 1, -1];
-        let S_X = [   1, -1, 1,
-                               -1, 1, -1,
-                                1, -1,1];
-        
-        for y in 1..self.frame.height - 1
-        {
-            for x in 1..self.frame.width - 1
-            {
-                let at_top_left =      *self.frame.at(x - 1,   y - 1   );
-                let at_top_middle =    *self.frame.at(x,       y - 1   );
-                let at_top_right =     *self.frame.at(x + 1,   y - 1   );
-                let at_left =          *self.frame.at(x - 1,   y       );
-                let at_middle =        *self.frame.at(x,       y       );
-                let at_right =         *self.frame.at(x + 1,   y       );
-                let at_bottom_left =   *self.frame.at(x - 1,   y + 1   );
-                let at_bottom_middle=  *self.frame.at(x,       y + 1   );
-                let at_bottom_right =  *self.frame.at(x + 1,   y + 1   );
-
-                let grad_x: f32 = (S_X[0] as f32 * at_top_left.r as f32) + (S_X[1] as f32 * at_top_middle.r as f32) + (S_X[2] as f32 * at_top_right.r as f32)+
-                                (S_X[3] as f32 * at_left.r as f32) + (S_X[4] as f32 * at_middle.r as f32) + (S_X[5] as f32 * at_right.r as f32)+
-                                (S_X[6] as f32 * at_bottom_left.r as f32) + (S_X[7] as f32 * at_bottom_middle.r as f32) + (S_X[8] as f32 * at_bottom_right.r as f32);
-
-                let grad_y: f32 = (S_Y[0] as f32 * at_top_left.r as f32) + (S_Y[1] as f32 * at_top_middle.r as f32) + (S_Y[2] as f32 * at_top_right.r as f32)+
-                                (S_Y[3] as f32 * at_left.r as f32) + (S_Y[4] as f32 * at_middle.r as f32) + (S_Y[5] as f32 * at_right.r as f32)+
-                                (S_Y[6] as f32 * at_bottom_left.r as f32) + (S_Y[7] as f32 * at_bottom_middle.r as f32) + (S_Y[8] as f32 * at_bottom_right.r as f32);    
-
-                let gradient: u8 = (grad_x * grad_x + grad_y * grad_y).sqrt() as u8 ; 
-                *self.target.at(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
-                // let num = fastrand::u8(0..3);
-                // if num == 0
-                // {
-                //     *self.target.at(x, y) = olc::Pixel::rgb(gradient, gradient/n.max(1), gradient/n.max(1));
-                // }
-                // else if num == 1
-                // {
-                //     *self.target.at(x, y) = olc::Pixel::rgb(gradient/n.max(1), gradient, gradient/n.max(1));
-                // }
-                // else if num == 2
-                // {
-                //     *self.target.at(x, y) = olc::Pixel::rgb(gradient/n.max(1), gradient/n.max(1), gradient);
-                // }
+                let gradient: u8 = ((grad_x * grad_x + grad_y * grad_y)as f32).sqrt() as u8 ; 
+                *target.at_mut(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
             }                   
         }
     }
 
-    /// temp -= target
-    fn subtract(&mut self)
+    fn sobel_edge_detection_3x3(&mut self, target: &mut Image)
     {
-        for y in 0 .. self.frame.height
+        /*
+        other kernel ideas:
+
+            [    2,  1,  1,
+                 1,  0, -1,
+                -1, -1, -2];
+            [    1, 1, 2,
+                -1, 0, 1,
+                 -2,-1,-1];
+
+            ____________
+            paimting
+            [    2, 1,-2,
+                 1,-3, 1,
+                -2, 1, 2];
+            [   -2, 1, 2,
+                 1,-3, 1,
+                 2, 1,-2];
+        */
+        
+        let S_Y =  [   -1, 1,-1,
+                                 1, 0, 1,
+                                -1, 1, -1];
+        let S_X = [   1, -1, 1,
+                               -1, 1, -1,
+                                1, -1,1];
+        
+        for y in 1..self.frame.height - 1
         {
-            for x in 0 .. self.frame.width
+            for x in 0..self.width
             {
-                self.temp.at(x, y).r = (self.temp.at(x, y).r as i16 - self.target.at(x, y).r as i16).max(0) as u8;
-                self.temp.at(x, y).g = (self.temp.at(x, y).g as i16 - self.target.at(x, y).g as i16).max(0) as u8;
-                self.temp.at(x, y).b = (self.temp.at(x, y).b as i16 - self.target.at(x, y).b as i16).max(0) as u8;
+                if !(1..self.width-1).contains(&x)
+                || !(1..self.height-1).contains(&y)
+                {
+                    *target.at_mut(x, y) = olc::BLACK;
+                    continue;
+                }
+                let at_top_left =      self.at(x - 1,   y - 1   ).brightness();
+                let at_top_middle =    self.at(x,       y - 1   ).brightness();
+                let at_top_right =     self.at(x + 1,   y - 1   ).brightness();
+                let at_left =          self.at(x - 1,   y       ).brightness();
+                let at_middle =        self.at(x,       y       ).brightness();
+                let at_right =         self.at(x + 1,   y       ).brightness();
+                let at_bottom_left =   self.at(x - 1,   y + 1   ).brightness();
+                let at_bottom_middle=  self.at(x,       y + 1   ).brightness();
+                let at_bottom_right =  self.at(x + 1,   y + 1   ).brightness();
+
+                let grad_x = (S_X[0] * at_top_left as i32) + (S_X[1] * at_top_middle as i32) + (S_X[2] * at_top_right as i32)+
+                                (S_X[3] * at_left as i32) + (S_X[4] * at_middle as i32) + (S_X[5] * at_right as i32)+
+                                (S_X[6] * at_bottom_left as i32) + (S_X[7] * at_bottom_middle as i32) + (S_X[8] * at_bottom_right as i32);
+
+                let grad_y = (S_Y[0] * at_top_left as i32) + (S_Y[1] * at_top_middle as i32) + (S_Y[2] * at_top_right as i32)+
+                                (S_Y[3] * at_left as i32) + (S_Y[4] * at_middle as i32) + (S_Y[5] * at_right as i32)+
+                                (S_Y[6] * at_bottom_left as i32) + (S_Y[7] * at_bottom_middle as i32) + (S_Y[8] * at_bottom_right as i32);    
+
+                let gradient: u8 = ((grad_x * grad_x + grad_y * grad_y)as f32).sqrt() as u8 ; 
+                *target.at_mut(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
+            }                   
+        }
+    }
+
+    fn threshold(&mut self, target: &mut Image, threshold: u8)
+    {
+        for y in 0..self.height
+        {
+            for x in 0..self.width
+            {
+                let brt = self.at(x,y).brightness();
+                *target.at_mut(x,y) = if brt >= threshold {olc::WHITE} else {olc::BLACK};
             }
         }
-        //std::mem::swap(&mut self.frame, &mut self.target);
     }
-    /// target += frame * frac
-    fn add_frame(&mut self,fraction:(i16,i16))
+
+    fn threshold_colour(&mut self, target: &mut Image, threshold: u8)
     {
-        for y in 0 .. self.frame.height
+        for y in 0..self.height
         {
-            for x in 0 .. self.frame.width
+            for x in 0..self.width
             {
-                self.target.at(x, y).r = (self.frame.at(x, y).r as i16 * fraction.0 /fraction.1  + self.target.at(x, y).r as i16).max(0) as u8;
-                self.target.at(x, y).g = (self.frame.at(x, y).g as i16 * fraction.0 /fraction.1  + self.target.at(x, y).g as i16).max(0) as u8;
-                self.target.at(x, y).b = (self.frame.at(x, y).b as i16 * fraction.0 /fraction.1  + self.target.at(x, y).b as i16).max(0) as u8;
+                let p = self.at(x,y);
+                target.at_mut(x,y).r = (p.r >= threshold) as u8 * 255;
+                target.at_mut(x,y).g = (p.g >= threshold) as u8 * 255;
+                target.at_mut(x,y).b = (p.b >= threshold) as u8 * 255;
             }
         }
-        //std::mem::swap(&mut self.frame, &mut self.target);
     }
-    /// target += temp * frac
-    fn add_temp(&mut self,fraction:(i16,i16))
+
+    fn gaussian_blur_3x3(&mut self, target: &mut Image)
     {
-        for y in 0 .. self.frame.height
-        {
-            for x in 0 .. self.frame.width
-            {
-                self.target.at(x, y).r = (self.temp.at(x, y).r as i16 * fraction.0 /fraction.1  + self.target.at(x, y).r as i16).max(0) as u8;
-                self.target.at(x, y).g = (self.temp.at(x, y).g as i16 * fraction.0 /fraction.1  + self.target.at(x, y).g as i16).max(0) as u8;
-                self.target.at(x, y).b = (self.temp.at(x, y).b as i16 * fraction.0 /fraction.1  + self.target.at(x, y).b as i16).max(0) as u8;
-            }
-        }
-        //std::mem::swap(&mut self.frame, &mut self.target);
+        self.convolve(target, 3, |s, (x,y)| [1./16., 1./8., 1./16., 1./8., 1./4., 1./8., 1./16., 1./8., 1./16.][y*s+x]);
     }
-    /// target *= frame
-    fn mul(&mut self)
+
+    fn box_blur(&mut self, target: &mut Image, kernel_size: usize)
     {
-        for y in 0 .. self.frame.height
-        {
-            for x in 0 .. self.frame.width
-            {
-                self.target.at(x, y).r = (self.frame.at(x, y).r as u16 * self.target.at(x, y).r as u16).div(255) as u8;
-                self.target.at(x, y).g = (self.frame.at(x, y).g as u16 * self.target.at(x, y).g as u16).div(255) as u8;
-                self.target.at(x, y).b = (self.frame.at(x, y).b as u16 * self.target.at(x, y).b as u16).div(255) as u8;
-            }
-        }
-        //std::mem::swap(&mut self.frame, &mut self.target);
+        self.convolve(target, kernel_size, |s, (_x, _y)| 1.0/ (s * s ) as f32);
     }
-    fn sobel_edge_detection_3x3(&mut self)
+
+    fn sobel_edge_detection_3x3_colour(&mut self, target: &mut Image)
     {
         const S_X: [i32;9] = [1,0,-1,2,0,-2,1,0,-1];
         const S_Y: [i32;9]  = [1,2,1,0,0,0,-1,-2,-1];
-        for y in 1..self.frame.height - 1
+        
+        for y in 0..self.height
         {
-            for x in 1..self.frame.width - 1
+            for x in 0..self.width
             {
-                let at_top_left =      *self.frame.at(x - 1,   y - 1   );
-                let at_top_middle =    *self.frame.at(x,       y - 1   );
-                let at_top_right =     *self.frame.at(x + 1,   y - 1   );
-                let at_left =          *self.frame.at(x - 1,   y       );
-                let at_middle =        *self.frame.at(x,       y       );
-                let at_right =         *self.frame.at(x + 1,   y       );
-                let at_bottom_left =   *self.frame.at(x - 1,   y + 1   );
-                let at_bottom_middle=  *self.frame.at(x,       y + 1   );
-                let at_bottom_right =  *self.frame.at(x + 1,   y + 1   );
+                if !(1..self.width-1).contains(&x)
+                || !(1..self.height-1).contains(&y)
+                {
+                    *target.at_mut(x, y) = olc::BLACK;
+                    continue;
+                }
+                let mut rx = 0;
+                let mut gx = 0;
+                let mut bx = 0;
+                let mut ry = 0;
+                let mut gy = 0;
+                let mut by = 0;
+                for kernel_y in 0..3
+                {
+                    for kernel_x in 0..3
+                    {
+                        let ix = x + kernel_x - 1;
+                        let iy = y + kernel_y - 1;
+                        let ik = kernel_y * 3 + kernel_x;
+                        let current_pixel = *self.at(ix,iy);
+                        rx += current_pixel.r as i32 * S_X[ik];
+                        gx += current_pixel.g as i32 * S_X[ik];
+                        bx += current_pixel.b as i32 * S_X[ik];
+                        ry += current_pixel.r as i32 * S_Y[ik];
+                        gy += current_pixel.g as i32 * S_Y[ik];
+                        by += current_pixel.b as i32 * S_Y[ik];
+                    }
+                }
 
-                let grad_x: f32 = (S_X[0] as f32 * at_top_left.r as f32) + (S_X[1] as f32 * at_top_middle.r as f32) + (S_X[2] as f32 * at_top_right.r as f32)+
-                                (S_X[3] as f32 * at_left.r as f32) + (S_X[4] as f32 * at_middle.r as f32) + (S_X[5] as f32 * at_right.r as f32)+
-                                (S_X[6] as f32 * at_bottom_left.r as f32) + (S_X[7] as f32 * at_bottom_middle.r as f32) + (S_X[8] as f32 * at_bottom_right.r as f32);
-
-                let grad_y: f32 = (S_Y[0] as f32 * at_top_left.r as f32) + (S_Y[1] as f32 * at_top_middle.r as f32) + (S_Y[2] as f32 * at_top_right.r as f32)+
-                                (S_Y[3] as f32 * at_left.r as f32) + (S_Y[4] as f32 * at_middle.r as f32) + (S_Y[5] as f32 * at_right.r as f32)+
-                                (S_Y[6] as f32 * at_bottom_left.r as f32) + (S_Y[7] as f32 * at_bottom_middle.r as f32) + (S_Y[8] as f32 * at_bottom_right.r as f32);    
-
-                let gradient: u8 = (grad_x * grad_x + grad_y * grad_y).sqrt() as u8 ; 
-                *self.target.at(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
-                
+                let r = ((rx*rx + ry*ry) as f32).sqrt() as u8;
+                let g = ((gx*gx + gy*gy) as f32).sqrt() as u8;
+                let b = ((bx*bx + by*by) as f32).sqrt() as u8;
+                *target.at_mut(x, y) = olc::Pixel::rgb(r, g, b);
             }                   
         }
-        
     }
 
-    fn threshold(&mut self, threshold: u8,color_brt: olc::Pixel, color_drk: olc::Pixel)
+    fn cross_blur(&mut self, target: &mut Image)
     {
-        for y in 0..self.frame.height
+        let S_Y =  [   -1, 1,-1,
+                                 1, 0, 1,
+                                -1, 1, -1];
+        let S_X = [   1, -1, 1,
+                               -1, 1, -1,
+                                1, -1,1];
+        
+        for y in 1..self.height - 1
         {
-            for x in 0..self.frame.width
+            for x in 1..self.width - 1
             {
-                let brightness = 
-                    // (self.frame.at(x,y).r as f32 * 0.299) +
-                    // (self.frame.at(x,y).g as f32 * 0.587) +
-                    // (self.frame.at(x,y).b as f32 * 0.114);
-                    self.frame.at(x,y).g as f32;
-                let r = (color_drk.r as f32).lerp(color_brt.r as f32, brightness/255. );
-                let g = (color_drk.g as f32).lerp(color_brt.g as f32, brightness/255.);
-                let b =(color_drk.b as f32).lerp(color_brt.b as f32, brightness/255.); 
+                let at_top_left =      self.at(x - 1,   y - 1   ).brightness();
+                let at_top_middle =    self.at(x,       y - 1   ).brightness();
+                let at_top_right =     self.at(x + 1,   y - 1   ).brightness();
+                let at_left =          self.at(x - 1,   y       ).brightness();
+                let at_middle =        self.at(x,       y       ).brightness();
+                let at_right =         self.at(x + 1,   y       ).brightness();
+                let at_bottom_left =   self.at(x - 1,   y + 1   ).brightness();
+                let at_bottom_middle=  self.at(x,       y + 1   ).brightness();
+                let at_bottom_right =  self.at(x + 1,   y + 1   ).brightness();
 
-                *self.target.at(x,y) = olc::Pixel::rgb(r as u8, g as u8, b as u8);
+                let grad_x= (S_X[0] * at_top_left as i32) + (S_X[1] * at_top_middle as i32) + (S_X[2] * at_top_right as i32)+
+                                (S_X[3] * at_left as i32) + (S_X[4] * at_middle as i32) + (S_X[5] * at_right as i32)+
+                                (S_X[6] * at_bottom_left as i32) + (S_X[7] * at_bottom_middle as i32) + (S_X[8] * at_bottom_right as i32);
+
+                let grad_y = (S_Y[0] * at_top_left as i32) + (S_Y[1] * at_top_middle as i32) + (S_Y[2] * at_top_right as i32)+
+                                (S_Y[3] * at_left as i32) + (S_Y[4] * at_middle as i32) + (S_Y[5] * at_right as i32)+
+                                (S_Y[6] * at_bottom_left as i32) + (S_Y[7] * at_bottom_middle as i32) + (S_Y[8] * at_bottom_right as i32);    
+
+                let gradient: u8 = ((grad_x * grad_x + grad_y * grad_y) as f32).sqrt() as u8; 
+                *target.at_mut(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
             }
         }
     }
+}
+
+    fn to_array(image: &mut Image) -> Vec<u8> 
+    {
+        let mut data = Vec::new();
+        for  pixel in &image.pixels
+        {
+            data.push(pixel.r);
+            data.push(pixel.g);
+            data.push(pixel.b);
+            data.push(pixel.a);
+        }
+        return data;
+    }
+    // fn threshold(&mut self, threshold: u8)
+    // {
+    //     for y in 0..self.frame.height
+    //     {
+    //         for x in 0..self.frame.width
+    //         {
+    //             let brightness = 
+    //                 (self.frame.at(x,y).r as f32 * 0.299) +
+    //                 (self.frame.at(x,y).g as f32 * 0.587) +
+    //                 (self.frame.at(x,y).b as f32 * 0.114);
+
+    //             *self.target.at(x,y) = 
+    //                 if brightness as u8 >= threshold
+    //                 {olc::WHITE}
+    //                 else
+    //                 {olc::BLACK};
+    //         }
+    //     }
+    // }
 
 }
 
@@ -304,56 +360,38 @@ impl olc::PGEApplication for Window
     fn on_user_update(&mut self, pge: &mut olc::PixelGameEngine, delta: f32) -> bool
     {
         let img = self.cam_iter.next().unwrap();
-        let fraction = (7,10);
-        if self.mode == Mode::TimeBlend
+        let fraction = (5,10);
+        for (i, pixel) in img.pixels().enumerate()
         {
-            for (i, pixel) in img.pixels().enumerate()
-            {
-                let p = olc::Pixel::rgb
-                (
-                    ((pixel.data[0] as u32 * (fraction.1 - fraction.0) + self.frame.pixels[i].r as u32 * fraction.0) / fraction.1) as u8,
-                    ((pixel.data[1] as u32 * (fraction.1 - fraction.0) + self.frame.pixels[i].g as u32 * fraction.0) / fraction.1) as u8,
-                    ((pixel.data[2] as u32 * (fraction.1 - fraction.0) + self.frame.pixels[i].b as u32 * fraction.0) / fraction.1) as u8,
-                );
-                self.frame.pixels[i] = p;
-            }
+            let p = olc::Pixel::rgb
+            (
+                pixel.data[0],
+                pixel.data[1],
+                pixel.data[2],
+            );
+            self.frame.pixels[i] = p;
         }
-        else
-        {
-            for (i, pixel) in img.pixels().enumerate()
-            {
-                let p = olc::Pixel::rgb
-                (
-                    pixel.data[0],
-                    pixel.data[1],
-                    pixel.data[2],
-                );
-                self.frame.pixels[i] = p;
-            }
-        }
+    
         //process frame
         match self.mode
         {
             Mode::Normal => (),
-            Mode::Sobel => self.sobel_edge_detection_3x3(),
-            Mode::FonkySobel => 
-            {
-                self.sobel_edge_detection_fonky();
-                std::mem::swap(&mut self.target,&mut self.temp);
-                self.painting();
-                self.subtract();
-                self.mul();
-            },
-            Mode::TimeBlend => (),
-            Mode::Threshold => self.threshold(pge.get_mouse_x() as u8 / 3,olc::Pixel::rgb(255,100, 00), olc::Pixel::rgb(100,0, 200)),
+            Mode::Sobel => self.frame.sobel_edge_detection_3x3(&mut self.target),
+            Mode::SobelColour => self.frame.sobel_edge_detection_3x3_colour(&mut self.target),
+            Mode::TimeBlend => unimplemented!(),
+            Mode::Threshold => self.frame.threshold(&mut self.target, pge.get_mouse_x() as u8 / 3),
+            Mode::GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
+            Mode::BoxBlur => self.frame.box_blur(&mut self.target, 5),
+            Mode::Painting => self.frame.painting(&mut self.target),
+            Mode::CrossBlur => self.frame.cross_blur(&mut self.target),
         };
-        
+
         if pge.get_key(olc::Key::S).pressed
         {
             let path = String::from("image") + &self.counter.to_string() + ".png";
-            let file = File::create(Path::new(&path)).unwrap();
+            let file = std::fs::File::create(std::path::Path::new(&path)).unwrap();
             self.counter += 1;
-            let ref mut w = BufWriter::new(file);
+            let ref mut w = std::io::BufWriter::new(file);
             let mut encoder = png::Encoder::new(w, self.frame.width as u32, self.frame.height as u32); 
             encoder.set_color(png::ColorType::Rgba);
             encoder.set_depth(png::BitDepth::Eight);
@@ -368,9 +406,9 @@ impl olc::PGEApplication for Window
             );
             encoder.set_source_chromaticities(source_chromaticities);
             let mut writer = encoder.write_header().unwrap();
-            writer.write_image_data(&self.target.pixels.iter().map(|p| [p.r, p.g, p.b, p.a]).flatten().collect::<Vec<u8>>()).unwrap();
+            writer.write_image_data(&Window::to_array(&mut self.target)).unwrap();
         }
-        
+
         for y in 0..pge.screen_height()
         {
             for x in 0..pge.screen_width()
@@ -387,18 +425,17 @@ fn main()
     let cam = camera_capture::create(0).unwrap();
     let mut cam_iter = cam.fps(30.0).unwrap().start().unwrap();
     let h = cam_iter.next().unwrap();
-    
     let width = h.width() as usize / 2;
     let height = h.height() as usize / 2;
+    
     let cam = camera_capture::create(0).unwrap();
     let cam_iter = cam.fps(30.0).unwrap().resolution(width as u32, height as u32).unwrap().start().unwrap();
-    
+
     let mut pixels = Vec::with_capacity(width* height);
     pixels.resize(width*height, olc::MAGENTA);
     let frame = Image{width,height,pixels: pixels.clone()};
     let mode = Mode::Sobel;
     
-    let counter = 0;
-    let window = Window{cam_iter, mode, target: frame.clone(), temp: frame.clone(), frame, counter};
+    let window = Window{cam_iter, counter: 0, mode, target: frame.clone(), temp: frame.clone(), frame};
     olc::PixelGameEngine::construct(window, width, height, 4, 4).start();
 }
