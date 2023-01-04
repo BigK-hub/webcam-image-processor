@@ -20,12 +20,12 @@ fn main()
     let frame = Image{width,height,pixels: pixels.clone()};
     let mode = Mode::Sobel;
     
-    let window = Window{cam_iter, counter: 0, mode, target: frame.clone(), temp: frame.clone(), frame};
+    let window = Window{cam_iter, counter: 0, mode, target: frame.clone(), _temp: frame.clone(), frame};
     olc::PixelGameEngine::construct(window, width, height, 4, 4).start();
 }
 
 #[allow(dead_code)]
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 enum Mode
 {
     Normal,
@@ -46,20 +46,19 @@ struct Window
     mode: Mode,
     frame: Image,
     target: Image,
-    temp: Image,
+    _temp: Image, //remove underscore when you actually need this
 }
 
 impl olc::PGEApplication for Window
 {
     const APP_NAME: &'static str = "mhm aha";
-    fn on_user_create(&mut self, pge: &mut olc::PixelGameEngine) -> bool
+    fn on_user_create(&mut self, _pge: &mut olc::PixelGameEngine) -> bool
     {
         true
     }
-    fn on_user_update(&mut self, pge: &mut olc::PixelGameEngine, delta: f32) -> bool
+    fn on_user_update(&mut self, pge: &mut olc::PixelGameEngine, _delta: f32) -> bool
     {
         let img = self.cam_iter.next().unwrap();
-        let fraction = (5,10);
         for (i, pixel) in img.pixels().enumerate()
         {
             let p = olc::Pixel::rgb
@@ -85,6 +84,13 @@ impl olc::PGEApplication for Window
             Mode::CrossBlur => self.frame.cross_blur(&mut self.target),
         };
 
+        if pge.get_key(olc::Key::M).pressed
+        {
+            // It is very important that Mode::CrossBlur remains the last mode in the Mode enum.
+            // If that's not the case, pressing the M key will not go through all modes.
+            self.mode = unsafe{std::mem::transmute::<u8, Mode>((self.mode.clone() as u8 + 1)% (Mode::CrossBlur as u8 + 1))};
+        }
+
         if pge.get_key(olc::Key::S).pressed
         {
             let path = String::from("image") + &self.counter.to_string() + ".png";
@@ -97,11 +103,11 @@ impl olc::PGEApplication for Window
             encoder.set_source_gamma(png::ScaledFloat::from_scaled(45455)); // 1.0 / 2.2, scaled by 100000
             encoder.set_source_gamma(png::ScaledFloat::new(1.0 / 2.2));     // 1.0 / 2.2, unscaled, but rounded
             let source_chromaticities = png::SourceChromaticities::new
-            (     // Using unscaled instantiation here
-                    (0.31270, 0.32900),
-                    (0.64000, 0.33000),
-                    (0.30000, 0.60000),
-                    (0.15000, 0.06000)
+            (   // Using unscaled instantiation here
+                (0.31270, 0.32900),
+                (0.64000, 0.33000),
+                (0.30000, 0.60000),
+                (0.15000, 0.06000)
             );
             encoder.set_source_chromaticities(source_chromaticities);
             let mut writer = encoder.write_header().unwrap();
@@ -112,7 +118,7 @@ impl olc::PGEApplication for Window
         {
             for x in 0..pge.screen_width()
             {
-                pge.draw(x as i32,y as i32, *self.target.at(x,y));
+                pge.draw(x as i32, y as i32, *self.target.at(x,y));
             }
         }
         true
