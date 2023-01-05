@@ -5,8 +5,11 @@ Currently there are implemented
 - Sobel
 - Sobel with colour
 - Threshold
+- RGBThreshold
 - Gaussian Blur 3x3
-- Box Blur 
+- Box Blur
+- Painting,
+- CrossBlur,
 
 these mode are currently able to be set via a variable called "mode" in the main.rs file
 
