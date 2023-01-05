@@ -6,8 +6,8 @@ use camera_capture;
 
 fn main()
 {
-    let width = 256;
-    let height = 240;
+    let width = 500;
+    let height = width * 9 /16;
     
     let cam = camera_capture::create(0).unwrap();
     let cam_iter = cam.fps(30.0).unwrap().resolution(width as u32, height as u32).unwrap().start().unwrap();
@@ -99,11 +99,7 @@ impl olc::PGEApplication for Window
             Mode::ThresholdColour => self.frame.threshold_colour(&mut self.target, pge.get_mouse_x() as u8 / 5),
             Mode::TimeBlend => unimplemented!(),
             Mode::Threshold => self.frame.threshold(&mut self.target, pge.get_mouse_x() as u8 / 3),
-            Mode::FSDithering => 
-            {
-                self.frame.floyd_steinberg_dithering(&mut self._temp, 1);
-                self._temp.box_blur(&mut self.target, 3);
-            },
+            Mode::FSDithering =>  self.frame.floyd_steinberg_dithering(&mut self.target, 1),
             Mode::GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
             Mode::BoxBlur => self.frame.box_blur(&mut self.target, 3),
             Mode::Painting => self.frame.painting(&mut self.target),
