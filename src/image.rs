@@ -172,9 +172,9 @@ impl Image
             }
         }
     }
-    pub fn floyd_steinberg_dithering(&mut self, target: &mut Image, _bits_per_channel:usize)
+    pub fn floyd_steinberg_dithering(&mut self, target: &mut Image, bits_per_channel:usize)
     {
-       // let max_values_per_channel = if bits_per_channel > 8 {1 << 8} else{1 << bits_per_channel};
+       let max_values_per_channel = if bits_per_channel > 8 {255} else{1 << bits_per_channel};
        //self.threshold(target, 125);
        //std::mem::swap(self,target);
 
@@ -192,7 +192,7 @@ impl Image
                 //let error = self.at(x, y) -
                 let old_pixel = *target.at(x,y);
                 
-                let factor = 255/4;
+                let factor = 255/max_values_per_channel;
                 let new_r = ((old_pixel.r / factor) * (factor)) as u8;
                 let new_g = ((old_pixel.g / factor) * (factor)) as u8;
                 let new_b = ((old_pixel.b / factor) * (factor)) as u8;
@@ -200,8 +200,8 @@ impl Image
                 *target.at_mut(x, y) = olc::Pixel::rgb(new_r, new_g, new_b);
 
                 let error_r = old_pixel.r as i32 - new_r as i32;
-                let error_g = old_pixel.g as i32 - new_r as i32;
-                let error_b = old_pixel.b as i32 - new_r as i32;
+                let error_g = old_pixel.g as i32 - new_g as i32;
+                let error_b = old_pixel.b as i32 - new_b as i32;
                 
                 //println!("error: {},{},{}",error_r,error_g,error_b);
                 let add = |factor:i32, error:i32| error as f32 * factor as f32 /16.0;
@@ -216,7 +216,7 @@ impl Image
 
                 target.at_mut(x, y+1).r += add(5,error_r) as u8;
                 target.at_mut(x, y+1).g += add(5,error_g) as u8;
-                target.at_mut(x, y+1).b += add(5,error_g) as u8;
+                target.at_mut(x, y+1).b += add(5,error_b) as u8;
 
                 target.at_mut(x+1, y+1).r += add(1,error_r)as u8;
                 target.at_mut(x+1, y+1).g += add(1,error_g)as u8;

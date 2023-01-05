@@ -79,9 +79,13 @@ impl olc::PGEApplication for Window
             Mode::SobelColour => self.frame.sobel_edge_detection_3x3_colour(&mut self.target),
             Mode::TimeBlend => unimplemented!(),
             Mode::Threshold => self.frame.threshold(&mut self.target, pge.get_mouse_x() as u8 / 3),
-            Mode::FSDithering => self.frame.floyd_steinberg_dithering(&mut self.target, 3),
+            Mode::FSDithering => 
+            {
+                self.frame.floyd_steinberg_dithering(&mut self._temp, 1);
+                self._temp.box_blur(&mut self.target, 3);
+            },
             Mode::GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
-            Mode::BoxBlur => self.frame.box_blur(&mut self.target, 5),
+            Mode::BoxBlur => self.frame.box_blur(&mut self.target, 3),
             Mode::Painting => self.frame.painting(&mut self.target),
             Mode::CrossBlur => self.frame.cross_blur(&mut self.target),
         };
