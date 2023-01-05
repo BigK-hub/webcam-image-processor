@@ -18,7 +18,7 @@ fn main()
     let mut pixels = Vec::with_capacity(width* height);
     pixels.resize(width*height, olc::MAGENTA);
     let frame = Image{width,height,pixels: pixels.clone()};
-    let mode = Mode::Sobel;
+    let mode = Mode::FSDithering;
     
     let window = Window{cam_iter, counter: 0, mode, target: frame.clone(), _temp: frame.clone(), frame};
     olc::PixelGameEngine::construct(window, width, height, 4, 4).start();
@@ -33,6 +33,7 @@ enum Mode
     Sobel,
     SobelColour,
     Threshold,
+    FSDithering,
     GaussianBlur,
     BoxBlur,
     Painting,
@@ -78,6 +79,7 @@ impl olc::PGEApplication for Window
             Mode::SobelColour => self.frame.sobel_edge_detection_3x3_colour(&mut self.target),
             Mode::TimeBlend => unimplemented!(),
             Mode::Threshold => self.frame.threshold(&mut self.target, pge.get_mouse_x() as u8 / 3),
+            Mode::FSDithering => self.frame.floyd_steinberg_dithering(&mut self.target, 3),
             Mode::GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
             Mode::BoxBlur => self.frame.box_blur(&mut self.target, 5),
             Mode::Painting => self.frame.painting(&mut self.target),
