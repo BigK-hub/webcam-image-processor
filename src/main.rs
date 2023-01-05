@@ -6,21 +6,25 @@ use camera_capture;
 
 fn main()
 {
-    let cam = camera_capture::create(0).unwrap();
-    let mut cam_iter = cam.fps(30.0).unwrap().start().unwrap();
-    let h = cam_iter.next().unwrap();
-    let width = h.width() as usize / 2;
-    let height = h.height() as usize / 2;
+    let width = 256;
+    let height = 240;
     
     let cam = camera_capture::create(0).unwrap();
     let cam_iter = cam.fps(30.0).unwrap().resolution(width as u32, height as u32).unwrap().start().unwrap();
 
-    let mut pixels = Vec::with_capacity(width* height);
-    pixels.resize(width*height, olc::MAGENTA);
-    let frame = Image{width,height,pixels: pixels.clone()};
+    let pixels = (0..width*height).map(|_x| olc::MAGENTA).collect::<Vec<olc::Pixel>>();
+    let frame = Image{width,height, pixels};
+    
     let mode = Mode::FSDithering;
     
-    let window = Window{cam_iter, counter: 0, mode, target: frame.clone(), _temp: frame.clone(), frame};
+    let window = Window
+    {
+        cam_iter,
+        counter: 0,
+        mode, target: frame.clone(),
+        _temp: frame.clone(),
+        frame
+    };
     olc::PixelGameEngine::construct(window, width, height, 4, 4).start();
 }
 
@@ -33,6 +37,7 @@ enum Mode
     Sobel,
     SobelColour,
     Threshold,
+    ThresholdColour,
     FSDithering,
     GaussianBlur,
     BoxBlur,
@@ -58,25 +63,40 @@ impl olc::PGEApplication for Window
         true
     }
     fn on_user_update(&mut self, pge: &mut olc::PixelGameEngine, _delta: f32) -> bool
-    {
-        let img = self.cam_iter.next().unwrap();
-        for (i, pixel) in img.pixels().enumerate()
+    {   
+        // fraction.0 is proportional to the influence of the next frame
+        let fraction = if self.mode == Mode::TimeBlend {(5, 10)} else {(10, 10)};
+        for (i, pixel) in self.cam_iter.next().unwrap().pixels().enumerate()
         {
-            let p = olc::Pixel::rgb
-            (
-                pixel.data[0],
-                pixel.data[1],
-                pixel.data[2],
-            );
-            self.frame.pixels[i] = p;
+            let p = self.frame.pixels[i];
+            let mut r = p.r as u32;
+            let mut g = p.g as u32;
+            let mut b = p.b as u32;
+
+            r *= fraction.1 - fraction.0;
+            g *= fraction.1 - fraction.0;
+            b *= fraction.1 - fraction.0;
+
+            r += pixel.data[0] as u32 * (fraction.0);
+            g += pixel.data[1] as u32 * (fraction.0);
+            b += pixel.data[2] as u32 * (fraction.0);
+
+            r /= fraction.1;
+            g /= fraction.1;
+            b /= fraction.1;
+
+            self.frame.pixels[i] = olc::Pixel::rgb(r as u8,g as u8,b as u8);
         }
     
         //process frame
         match self.mode
         {
-            Mode::Normal => (),
+            Mode::Normal => std::mem::swap(&mut self.target, &mut self.frame),
+            Mode::TimeBlend => std::mem::swap(&mut self.target, &mut self.frame),
             Mode::Sobel => self.frame.sobel_edge_detection_3x3(&mut self.target),
             Mode::SobelColour => self.frame.sobel_edge_detection_3x3_colour(&mut self.target),
+            Mode::Threshold => self.frame.threshold(&mut self.target, pge.get_mouse_x() as u8 / 5),
+            Mode::ThresholdColour => self.frame.threshold_colour(&mut self.target, pge.get_mouse_x() as u8 / 5),
             Mode::TimeBlend => unimplemented!(),
             Mode::Threshold => self.frame.threshold(&mut self.target, pge.get_mouse_x() as u8 / 3),
             Mode::FSDithering => 
