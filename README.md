@@ -8,7 +8,8 @@ This program, written in rust, applies image processing effects to your webcam f
 - Threshold per channel
 - Gaussian Blur 3x3
 - Box Blur
-- Painting (dreamed up kernel)
+- Greyscale
+- Sharpen
 - CrossBlur (dreamed up kernel)
 
 ## How to use
