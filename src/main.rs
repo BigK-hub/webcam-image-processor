@@ -1,7 +1,5 @@
 pub mod pixel_traits;
 pub mod image;
-use std::str::FromStr;
-
 use image::Image;
 use olc_pge as olc;
 use camera_capture;
@@ -18,7 +16,7 @@ fn main()
     let pixels = (0..width*height).map(|_x| olc::MAGENTA).collect::<Vec<olc::Pixel>>();
     let frame = Image{width,height, pixels};
     
-    let processors = vec![Mode::Sobel];
+    let processors = vec![Mode::Sharpen];
     
     let slider = Slider
     {
@@ -56,7 +54,8 @@ enum Mode
     ThresholdColour,
     GaussianBlur,
     BoxBlur,
-    Painting,
+    GreyScale,
+    Sharpen,
     CrossBlur,
 }
 
@@ -184,7 +183,8 @@ impl olc::PGEApplication for Window
                 Mode::ThresholdColour => self.frame.threshold_colour(&mut self.target, pge.get_mouse_x() as u8),
                 Mode::GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
                 Mode::BoxBlur => self.frame.box_blur(&mut self.target, 5),
-                Mode::Painting => self.frame.painting(&mut self.target),
+                Mode::GreyScale => self.frame.greyscale(&mut self.target),
+                Mode::Sharpen => self.frame.sharpen(&mut self.target),
                 Mode::CrossBlur => self.frame.cross_blur(&mut self.target),
             };
         }
