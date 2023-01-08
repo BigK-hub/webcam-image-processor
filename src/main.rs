@@ -11,7 +11,7 @@ fn main()
     let height = width * 9 / 16;
     
     let cam = camera_capture::create(0).unwrap();
-    let cam_iter = cam.fps(30.0).unwrap().resolution(width as u32, height as u32).unwrap().start().unwrap();
+    let cam_iter = cam.fps(60.0).unwrap().resolution(width as u32, height as u32).unwrap().start().unwrap();
 
     let pixels = (0..width*height).map(|_x| olc::MAGENTA).collect::<Vec<olc::Pixel>>();
     let frame = Image{width,height, pixels};
@@ -25,7 +25,7 @@ fn main()
         w: 50,
         h: 20,
         start_val: 0,
-        end_val: 9,
+        end_val: (Mode::CrossBlur as u32),
         step_size: 1,
         current_val: 1,
     };
@@ -56,6 +56,7 @@ enum Mode
     BoxBlur,
     GreyScale,
     Sharpen,
+    SharpenColour,
     CrossBlur,
 }
 
@@ -85,19 +86,23 @@ impl Slider
 {
     fn get_value(&mut self, x: i32, y: i32) -> u32
     {
-        let leftx = self.x;
-        let rightx = self.x + self.w;
-        let topy = self.y;
-        let bottomy = self.y + self.h;
-        if x >= leftx && x <= rightx
-        && y >= topy && y <= bottomy
+        if self.is_hovering(x, y)
         {
             //inside slider
             let delta_val = self.end_val as i32 - self.start_val as i32;
-            self.current_val = (self.start_val as i32 + (((x - leftx) * delta_val / self.w) / self.step_size as i32 ) * self.step_size as i32) as u32;
+            self.current_val = (self.start_val as i32 + (((x - self.x) * delta_val / self.w) / self.step_size as i32 ) * self.step_size as i32) as u32;
         }
         return self.current_val;
     }
+
+    fn is_hovering(&self, x: i32, y: i32) -> bool
+    {
+        let rightx = self.x + self.w;
+        let bottomy = self.y + self.h;
+        return x >= self.x && x <= rightx
+        && y >= self.y && y <= bottomy;
+    }
+
     fn get_slider_x(&self) -> i32
     {
         let delta_val = self.end_val as i32 - self.start_val as i32;
@@ -149,21 +154,13 @@ impl olc::PGEApplication for Window
         for processor in &self.processors
         {
             // fraction.0 is proportional to the influence of the next frame
-            let fraction = if *processor == Mode::TimeBlend {(5, 10)} else {(10, 10)};
+            let fraction = if *processor == Mode::TimeBlend||true {(1, 10)} else {(10, 10)};
             for (i, pixel) in self.cam_iter.next().unwrap().pixels().enumerate()
             {
                 let p = self.frame.pixels[i];
-                let mut r = p.r as u32;
-                let mut g = p.g as u32;
-                let mut b = p.b as u32;
-
-                r *= fraction.1 - fraction.0;
-                g *= fraction.1 - fraction.0;
-                b *= fraction.1 - fraction.0;
-
-                r += pixel.data[0] as u32 * (fraction.0);
-                g += pixel.data[1] as u32 * (fraction.0);
-                b += pixel.data[2] as u32 * (fraction.0);
+                let mut r = p.r as u32 * fraction.1 - p.r as u32 * fraction.0 + pixel.data[0] as u32 * fraction.0;
+                let mut g = p.g as u32 * fraction.1 - p.g as u32 * fraction.0 + pixel.data[1] as u32 * fraction.0;
+                let mut b = p.b as u32 * fraction.1 - p.b as u32 * fraction.0 + pixel.data[2] as u32 * fraction.0;
 
                 r /= fraction.1;
                 g /= fraction.1;
@@ -175,8 +172,8 @@ impl olc::PGEApplication for Window
             //process frame
             match processor
             {
-                Mode::Normal => std::mem::swap(&mut self.target, &mut self.frame),
-                Mode::TimeBlend => std::mem::swap(&mut self.target, &mut self.frame),
+                Mode::Normal => self.target = self.frame.clone(),
+                Mode::TimeBlend => self.target = self.frame.clone(),
                 Mode::Sobel => self.frame.sobel_edge_detection_3x3(&mut self.target),
                 Mode::SobelColour => self.frame.sobel_edge_detection_3x3_colour(&mut self.target),
                 Mode::Threshold => self.frame.threshold(&mut self.target, pge.get_mouse_x() as u8),
@@ -185,6 +182,7 @@ impl olc::PGEApplication for Window
                 Mode::BoxBlur => self.frame.box_blur(&mut self.target, 5),
                 Mode::GreyScale => self.frame.greyscale(&mut self.target),
                 Mode::Sharpen => self.frame.sharpen(&mut self.target),
+                Mode::SharpenColour => self.frame.sharpen_colour(&mut self.target),
                 Mode::CrossBlur => self.frame.cross_blur(&mut self.target),
             };
         }
