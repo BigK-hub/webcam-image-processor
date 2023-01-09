@@ -15,7 +15,7 @@ fn main()
     let pixels = (0..width*height).map(|_x| olc::MAGENTA).collect::<Vec<olc::Pixel>>();
     let frame = Image{width,height, pixels};
     
-    let mode = Mode::FSDithering;
+    let mode = Mode::FloydSteinbergDithering;
     
     let window = Window
     {
@@ -38,7 +38,7 @@ enum Mode
     SobelColour,
     Threshold,
     ThresholdColour,
-    FSDithering,
+    FloydSteinbergDithering,
     GaussianBlur,
     BoxBlur,
     Painting,
@@ -99,7 +99,7 @@ impl olc::PGEApplication for Window
             Mode::ThresholdColour => self.frame.threshold_colour(&mut self.target, pge.get_mouse_x() as u8 / 5),
             Mode::TimeBlend => unimplemented!(),
             Mode::Threshold => self.frame.threshold(&mut self.target, pge.get_mouse_x() as u8 / 3),
-            Mode::FSDithering =>  self.frame.floyd_steinberg_dithering(&mut self.target, 1),
+            Mode::FloydSteinbergDithering =>  self.frame.floyd_steinberg_dithering(&mut self.target, 1),
             Mode::GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
             Mode::BoxBlur => self.frame.box_blur(&mut self.target, 3),
             Mode::Painting => self.frame.painting(&mut self.target),
