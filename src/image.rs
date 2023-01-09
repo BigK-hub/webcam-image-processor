@@ -29,7 +29,7 @@ impl Image
         &mut self.pixels[y*self.width+x]
     }
 
-    pub fn convolve<F>(&mut self, target: &mut Image, kernel_size: usize, mut kernel_generator: F) where F: FnMut(usize, (usize, usize)) -> f32
+    pub fn convolve<F>(&self, target: &mut Image, kernel_size: usize, mut kernel_generator: F) where F: FnMut(usize, (usize, usize)) -> f32
     {
         for y in kernel_size/2..self.height - kernel_size/2
         {
@@ -53,17 +53,46 @@ impl Image
         }
     }
 
-    pub fn painting(&self, target: &mut Image)
+    pub fn handle_edges<F>(&self, target: &mut Image, kernel_size: usize, mut edge_handler: F) where F: FnMut(&Image, usize, (usize, usize)) -> olc::Pixel
     {
-        let S_Y = 
-        [2, 1,-2,
-        1,-3, 1,
-       -2, 1, 2];
+        for y in (0..kernel_size/2).chain(self.height - kernel_size/2 .. self.height)
+        {
+            for x in 0..self.width
+            {
+                let pixel = edge_handler(self, kernel_size, (x, y));
+                *target.at_mut(x, y) = pixel;
+            }
+        }
+        for y in 0..self.height
+        {
+            for x in (0..kernel_size/2).chain(self.width - kernel_size/2..self.width)
+            {
+                let pixel = edge_handler(self, kernel_size, (x, y));
+                *target.at_mut(x, y) = pixel;
+            }
+        }
+    }
+
+    pub fn greyscale(&self, target: &mut Image)
+    {
+        for (i, &pixel) in self.pixels.iter().enumerate()
+        {
+            let brt = pixel.brightness();
+            target.pixels[i] = olc::Pixel::rgb(brt, brt, brt);
+        }
+    }
+
+    pub fn sharpen(&self, target: &mut Image)
+    {
+        let s_y = [0;9];
+        [-1, 0,-1,
+          0, 4, 0,
+         -1, 0,-1];
    
-        let S_X = 
-        [-2, 1, 2,
-        1,-3, 1,
-        2, 1,-2];
+        let s_x = 
+        [0, -1, 0,
+         -1 ,5, -1,
+         0, -1, 0];
 
         for y in 0..self.height
         {
@@ -85,13 +114,13 @@ impl Image
                 let at_bottom_middle=  self.at(x,       y + 1   ).brightness();
                 let at_bottom_right =  self.at(x + 1,   y + 1   ).brightness();
 
-                let grad_x = (S_X[0] * at_top_left as i32) + (S_X[1] * at_top_middle as i32) + (S_X[2] * at_top_right as i32)+
-                                (S_X[3] * at_left as i32) + (S_X[4] * at_middle as i32) + (S_X[5] * at_right as i32)+
-                                (S_X[6] * at_bottom_left as i32) + (S_X[7] * at_bottom_middle as i32) + (S_X[8] * at_bottom_right as i32);
+                let grad_x = (s_x[0] * at_top_left as i32) + (s_x[1] * at_top_middle as i32) + (s_x[2] * at_top_right as i32)+
+                                (s_x[3] * at_left as i32) + (s_x[4] * at_middle as i32) + (s_x[5] * at_right as i32)+
+                                (s_x[6] * at_bottom_left as i32) + (s_x[7] * at_bottom_middle as i32) + (s_x[8] * at_bottom_right as i32);
 
-                let grad_y = (S_Y[0] * at_top_left as i32) + (S_Y[1] * at_top_middle as i32) + (S_Y[2] * at_top_right as i32)+
-                                (S_Y[3] * at_left as i32) + (S_Y[4] * at_middle as i32) + (S_Y[5] * at_right as i32)+
-                                (S_Y[6] * at_bottom_left as i32) + (S_Y[7] * at_bottom_middle as i32) + (S_Y[8] * at_bottom_right as i32);    
+                let grad_y = (s_y[0] * at_top_left as i32) + (s_y[1] * at_top_middle as i32) + (s_y[2] * at_top_right as i32)+
+                                (s_y[3] * at_left as i32) + (s_y[4] * at_middle as i32) + (s_y[5] * at_right as i32)+
+                                (s_y[6] * at_bottom_left as i32) + (s_y[7] * at_bottom_middle as i32) + (s_y[8] * at_bottom_right as i32);    
 
                 let gradient: u8 = ((grad_x * grad_x + grad_y * grad_y)as f32).sqrt() as u8 ; 
                 *target.at_mut(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
@@ -101,18 +130,8 @@ impl Image
 
     pub fn sobel_edge_detection_3x3(&mut self, target: &mut Image)
     {
-        let S_Y = 
-        [2, 1,-2,
-        1,-3, 1,
-       -2, 1, 2];
-   
-        let S_X = 
-        [-2, 1, 2,
-        1,-3, 1,
-        2, 1,-2];
-
-        let S_X: [i32;9] = [1, 0, -1, 2, 0, -2, 1, 0, -1];
-        let S_Y: [i32;9] = [1, 2, 1, 0, 0, 0, -1, -2, -1];
+        let s_x: [i32;9] = [1, 0, -1, 2, 0, -2, 1, 0, -1];
+        let s_y: [i32;9] = [1, 2, 1, 0, 0, 0, -1, -2, -1];
         for y in 0..self.height
         {
             for x in 0..self.width
@@ -120,6 +139,7 @@ impl Image
                 if !(1..self.width-1).contains(&x)
                 || !(1..self.height-1).contains(&y)
                 {
+                    //handling edges here
                     *target.at_mut(x, y) = olc::BLACK;
                     continue;
                 }
@@ -133,13 +153,13 @@ impl Image
                 let at_bottom_middle=  self.at(x,       y + 1   ).brightness();
                 let at_bottom_right =  self.at(x + 1,   y + 1   ).brightness();
 
-                let grad_x = (S_X[0] * at_top_left as i32) + (S_X[1] * at_top_middle as i32) + (S_X[2] * at_top_right as i32)+
-                                (S_X[3] * at_left as i32) + (S_X[4] * at_middle as i32) + (S_X[5] * at_right as i32)+
-                                (S_X[6] * at_bottom_left as i32) + (S_X[7] * at_bottom_middle as i32) + (S_X[8] * at_bottom_right as i32);
+                let grad_x = (s_x[0] * at_top_left as i32) + (s_x[1] * at_top_middle as i32) + (s_x[2] * at_top_right as i32)+
+                                (s_x[3] * at_left as i32) + (s_x[4] * at_middle as i32) + (s_x[5] * at_right as i32)+
+                                (s_x[6] * at_bottom_left as i32) + (s_x[7] * at_bottom_middle as i32) + (s_x[8] * at_bottom_right as i32);
 
-                let grad_y = (S_Y[0] * at_top_left as i32) + (S_Y[1] * at_top_middle as i32) + (S_Y[2] * at_top_right as i32)+
-                                (S_Y[3] * at_left as i32) + (S_Y[4] * at_middle as i32) + (S_Y[5] * at_right as i32)+
-                                (S_Y[6] * at_bottom_left as i32) + (S_Y[7] * at_bottom_middle as i32) + (S_Y[8] * at_bottom_right as i32);    
+                let grad_y = (s_y[0] * at_top_left as i32) + (s_y[1] * at_top_middle as i32) + (s_y[2] * at_top_right as i32)+
+                                (s_y[3] * at_left as i32) + (s_y[4] * at_middle as i32) + (s_y[5] * at_right as i32)+
+                                (s_y[6] * at_bottom_left as i32) + (s_y[7] * at_bottom_middle as i32) + (s_y[8] * at_bottom_right as i32);    
 
                 let gradient: u8 = ((grad_x * grad_x + grad_y * grad_y)as f32).sqrt() as u8 ; 
                 *target.at_mut(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
@@ -231,12 +251,26 @@ impl Image
     }
     pub fn gaussian_blur_3x3(&mut self, target: &mut Image)
     {
-        self.convolve(target, 3, |s, (x,y)| [1./16., 1./8., 1./16., 1./8., 1./4., 1./8., 1./16., 1./8., 1./16.][y*s+x]);
+        self.convolve(target, 3, |s, (x,y)|
+            [
+                1./16., 1./8., 1./16.,
+                1./8., 1./4., 1./8.,
+                1./16., 1./8., 1./16.
+            ][y*s+x]
+        );
+        self.handle_edges(target, 3,
+            |img, _s, (x,y)|
+            *img.at(x,y)
+        );
     }
 
     pub fn box_blur(&mut self, target: &mut Image, kernel_size: usize)
     {
         self.convolve(target, kernel_size, |s, (_x, _y)| 1.0/ (s * s ) as f32);
+        self.handle_edges(target, kernel_size, 
+            |img, _s, (x,y)|
+            *img.at(x,y)
+        );
     }
 
     pub fn sobel_edge_detection_3x3_colour(&mut self, target: &mut Image)
@@ -251,6 +285,7 @@ impl Image
                 if !(1..self.width-1).contains(&x)
                 || !(1..self.height-1).contains(&y)
                 {
+                    //handling edges here
                     *target.at_mut(x, y) = olc::BLACK;
                     continue;
                 }
@@ -287,10 +322,10 @@ impl Image
 
     pub fn cross_blur(&mut self, target: &mut Image)
     {
-        let S_Y =  [   -1, 1,-1,
+        let s_y =  [   -1, 1,-1,
                                  1, 0, 1,
                                 -1, 1, -1];
-        let S_X = [   1, -1, 1,
+        let s_x = [   1, -1, 1,
                                -1, 1, -1,
                                 1, -1,1];
         
@@ -308,13 +343,13 @@ impl Image
                 let at_bottom_middle=  self.at(x,       y + 1   ).brightness();
                 let at_bottom_right =  self.at(x + 1,   y + 1   ).brightness();
 
-                let grad_x= (S_X[0] * at_top_left as i32) + (S_X[1] * at_top_middle as i32) + (S_X[2] * at_top_right as i32)+
-                                (S_X[3] * at_left as i32) + (S_X[4] * at_middle as i32) + (S_X[5] * at_right as i32)+
-                                (S_X[6] * at_bottom_left as i32) + (S_X[7] * at_bottom_middle as i32) + (S_X[8] * at_bottom_right as i32);
+                let grad_x= (s_x[0] * at_top_left as i32) + (s_x[1] * at_top_middle as i32) + (s_x[2] * at_top_right as i32)+
+                                (s_x[3] * at_left as i32) + (s_x[4] * at_middle as i32) + (s_x[5] * at_right as i32)+
+                                (s_x[6] * at_bottom_left as i32) + (s_x[7] * at_bottom_middle as i32) + (s_x[8] * at_bottom_right as i32);
 
-                let grad_y = (S_Y[0] * at_top_left as i32) + (S_Y[1] * at_top_middle as i32) + (S_Y[2] * at_top_right as i32)+
-                                (S_Y[3] * at_left as i32) + (S_Y[4] * at_middle as i32) + (S_Y[5] * at_right as i32)+
-                                (S_Y[6] * at_bottom_left as i32) + (S_Y[7] * at_bottom_middle as i32) + (S_Y[8] * at_bottom_right as i32);    
+                let grad_y = (s_y[0] * at_top_left as i32) + (s_y[1] * at_top_middle as i32) + (s_y[2] * at_top_right as i32)+
+                                (s_y[3] * at_left as i32) + (s_y[4] * at_middle as i32) + (s_y[5] * at_right as i32)+
+                                (s_y[6] * at_bottom_left as i32) + (s_y[7] * at_bottom_middle as i32) + (s_y[8] * at_bottom_right as i32);    
 
                 let gradient: u8 = ((grad_x * grad_x + grad_y * grad_y) as f32).sqrt() as u8; 
                 *target.at_mut(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
