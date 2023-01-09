@@ -1,6 +1,5 @@
 use olc_pge as olc;
 use crate::pixel_traits::*;
-use lerp::Lerp;
 
 #[derive(Clone)]
 pub struct Image
@@ -54,17 +53,46 @@ impl Image
         }
     }
 
-    pub fn painting(&self, target: &mut Image)
+    pub fn handle_edges<F>(&self, target: &mut Image, kernel_size: usize, mut edge_handler: F) where F: FnMut(&Image, usize, (usize, usize)) -> olc::Pixel
     {
-        let s_y = 
-        [2, 1,-2,
-        1,-3, 1,
-       -2, 1, 2];
+        for y in (0..kernel_size/2).chain(self.height - kernel_size/2 .. self.height)
+        {
+            for x in 0..self.width
+            {
+                let pixel = edge_handler(self, kernel_size, (x, y));
+                *target.at_mut(x, y) = pixel;
+            }
+        }
+        for y in 0..self.height
+        {
+            for x in (0..kernel_size/2).chain(self.width - kernel_size/2..self.width)
+            {
+                let pixel = edge_handler(self, kernel_size, (x, y));
+                *target.at_mut(x, y) = pixel;
+            }
+        }
+    }
+
+    pub fn greyscale(&self, target: &mut Image)
+    {
+        for (i, &pixel) in self.pixels.iter().enumerate()
+        {
+            let brt = pixel.brightness();
+            target.pixels[i] = olc::Pixel::rgb(brt, brt, brt);
+        }
+    }
+
+    pub fn sharpen(&self, target: &mut Image)
+    {
+        let s_y = [0;9];
+        [-1, 0,-1,
+          0, 4, 0,
+         -1, 0,-1];
    
         let s_x = 
-        [-2, 1, 2,
-        1,-3, 1,
-        2, 1,-2];
+        [0, -1, 0,
+         -1 ,5, -1,
+         0, -1, 0];
 
         for y in 0..self.height
         {
@@ -100,15 +128,10 @@ impl Image
         }
     }
 
-    pub fn sobel_edge_detection_3x3(&self, target: &mut Image)
-    {   
-        let s_y =  [   1, 2, 1,
-                                 0, 0, 0,
-                                -1,-2,-1];
-        let s_x = [   -1, 0, 1,
-                                -2, 0, 2,
-                                -1, 0, 1];
-        
+    pub fn sobel_edge_detection_3x3(&mut self, target: &mut Image)
+    {
+        let s_x: [i32;9] = [1, 0, -1, 2, 0, -2, 1, 0, -1];
+        let s_y: [i32;9] = [1, 2, 1, 0, 0, 0, -1, -2, -1];
         for y in 0..self.height
         {
             for x in 0..self.width
@@ -116,6 +139,7 @@ impl Image
                 if !(1..self.width-1).contains(&x)
                 || !(1..self.height-1).contains(&y)
                 {
+                    //handling edges here
                     *target.at_mut(x, y) = olc::BLACK;
                     continue;
                 }
@@ -129,27 +153,13 @@ impl Image
                 let at_bottom_middle=  self.at(x,       y + 1   ).brightness();
                 let at_bottom_right =  self.at(x + 1,   y + 1   ).brightness();
 
-                let grad_x =
-                (s_x[0] * at_top_left as i32) +
-                (s_x[1] * at_top_middle as i32) +
-                (s_x[2] * at_top_right as i32) +
-                (s_x[3] * at_left as i32) +
-                (s_x[4] * at_middle as i32) +
-                (s_x[5] * at_right as i32) +
-                (s_x[6] * at_bottom_left as i32) +
-                (s_x[7] * at_bottom_middle as i32) +
-                (s_x[8] * at_bottom_right as i32);
+                let grad_x = (s_x[0] * at_top_left as i32) + (s_x[1] * at_top_middle as i32) + (s_x[2] * at_top_right as i32)+
+                                (s_x[3] * at_left as i32) + (s_x[4] * at_middle as i32) + (s_x[5] * at_right as i32)+
+                                (s_x[6] * at_bottom_left as i32) + (s_x[7] * at_bottom_middle as i32) + (s_x[8] * at_bottom_right as i32);
 
-                let grad_y =
-                (s_y[0] * at_top_left as i32) +
-                (s_y[1] * at_top_middle as i32) +
-                (s_y[2] * at_top_right as i32) +
-                (s_y[3] * at_left as i32) +
-                (s_y[4] * at_middle as i32) +
-                (s_y[5] * at_right as i32) +
-                (s_y[6] * at_bottom_left as i32) +
-                (s_y[7] * at_bottom_middle as i32) +
-                (s_y[8] * at_bottom_right as i32);    
+                let grad_y = (s_y[0] * at_top_left as i32) + (s_y[1] * at_top_middle as i32) + (s_y[2] * at_top_right as i32)+
+                                (s_y[3] * at_left as i32) + (s_y[4] * at_middle as i32) + (s_y[5] * at_right as i32)+
+                                (s_y[6] * at_bottom_left as i32) + (s_y[7] * at_bottom_middle as i32) + (s_y[8] * at_bottom_right as i32);    
 
                 let gradient: u8 = ((grad_x * grad_x + grad_y * grad_y)as f32).sqrt() as u8 ; 
                 *target.at_mut(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
@@ -157,7 +167,7 @@ impl Image
         }
     }
 
-    pub fn threshold(&self, target: &mut Image, threshold: u8)
+    pub fn threshold(&mut self, target: &mut Image, threshold: u8)
     {
         for y in 0..self.height
         {
@@ -169,7 +179,7 @@ impl Image
         }
     }
 
-    pub fn threshold_colour(&self, target: &mut Image, threshold: u8)
+    pub fn threshold_colour(&mut self, target: &mut Image, threshold: u8)
     {
         for y in 0..self.height
         {
@@ -183,49 +193,31 @@ impl Image
         }
     }
 
-    pub fn floyd_steinberg_dithering(&self, target: &mut Image, bits_per_pixel: u8)
-    {
-        let bits = if bits_per_pixel > 8 {8} else {bits_per_pixel};
-        let max_colours = 2_i32.pow(bits as u32) as u8;
-
-        for y in 0..self.height
-        {
-            for x in 0..self.width
-            {
-                let p = self.at(x,y);
-                target.at_mut(x,y).r = ((p.r as f32/ 255.0) * max_colours as f32) as u8;
-                target.at_mut(x,y).g = ((p.r as f32/ 255.0) * max_colours as f32) as u8;
-                target.at_mut(x,y).b = ((p.r as f32/ 255.0) * max_colours as f32) as u8;
-            }
-        }
-
-    }
-    pub fn brightness_interpolation(&self, target: &mut Image, dark_colour: olc::Pixel, bright_colour: olc::Pixel)
-    {
-        for y in 0..self.height
-        {
-            for x in 0..self.width
-            {
-                let value = self.at(x,y).brightness() as f32 / 255.0;
-                let r = (dark_colour.r as f32).lerp(bright_colour.r as f32, value);
-                let g = (dark_colour.g as f32).lerp(bright_colour.g as f32, value);
-                let b = (dark_colour.b as f32).lerp(bright_colour.b as f32, value);
-                *target.at_mut(x,y) = olc::Pixel::rgb(r as u8, g as u8, b as u8);
-            }
-        }
-    }
-
     pub fn gaussian_blur_3x3(&self, target: &mut Image)
     {
-        self.convolve(target, 3, |s, (x,y)| [1./16., 1./8., 1./16., 1./8., 1./4., 1./8., 1./16., 1./8., 1./16.][y*s+x]);
+        self.convolve(target, 3, |s, (x,y)|
+            [
+                1./16., 1./8., 1./16.,
+                1./8., 1./4., 1./8.,
+                1./16., 1./8., 1./16.
+            ][y*s+x]
+        );
+        self.handle_edges(target, 3,
+            |img, _s, (x,y)|
+            *img.at(x,y)
+        );
     }
 
-    pub fn box_blur(&self, target: &mut Image, kernel_size: usize)
+    pub fn box_blur(&mut self, target: &mut Image, kernel_size: usize)
     {
         self.convolve(target, kernel_size, |s, (_x, _y)| 1.0/ (s * s ) as f32);
+        self.handle_edges(target, kernel_size, 
+            |img, _s, (x,y)|
+            *img.at(x,y)
+        );
     }
 
-    pub fn sobel_edge_detection_3x3_colour(&self, target: &mut Image)
+    pub fn sobel_edge_detection_3x3_colour(&mut self, target: &mut Image)
     {
         const S_X: [i32;9] = [1,0,-1,2,0,-2,1,0,-1];
         const S_Y: [i32;9]  = [1,2,1,0,0,0,-1,-2,-1];
@@ -237,6 +229,7 @@ impl Image
                 if !(1..self.width-1).contains(&x)
                 || !(1..self.height-1).contains(&y)
                 {
+                    //handling edges here
                     *target.at_mut(x, y) = olc::BLACK;
                     continue;
                 }
@@ -271,7 +264,7 @@ impl Image
         }
     }
 
-    pub fn cross_blur(&self, target: &mut Image)
+    pub fn cross_blur(&mut self, target: &mut Image)
     {
         let s_y =  [   -1, 1,-1,
                                  1, 0, 1,
