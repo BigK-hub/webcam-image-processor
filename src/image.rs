@@ -152,7 +152,7 @@ impl Image
     /// 
     /// 
     /// [image processing kernel]: https://en.wikipedia.org/wiki/Kernel_(image_processing)
-    pub fn handle_edges<F>(&self, target: &mut Image, kernel_size: usize, mut edge_handler: F) where F: FnMut(&Image, usize, (usize, usize)) -> olc::Pixel
+    pub fn handle_edges<F>(&self, target: &mut Image, kernel_size: usize, edge_handler: F) where F: Fn(&Image, usize, (usize, usize)) -> olc::Pixel
     {
         for y in (0..kernel_size/2).chain(self.height - kernel_size/2 .. self.height)
         {
@@ -289,7 +289,7 @@ impl Image
         }
     }
 
-    pub fn threshold(&mut self, target: &mut Image, threshold: u8)
+    pub fn threshold(&self, target: &mut Image, threshold: u8)
     {
         self.for_each(target,
             |p|
@@ -300,7 +300,7 @@ impl Image
         );
     }
 
-    pub fn threshold_colour(&mut self, target: &mut Image, threshold: u8)
+    pub fn threshold_colour(&self, target: &mut Image, threshold: u8)
     {
         self.for_each(target,
             |p|
@@ -330,9 +330,8 @@ impl Image
         );
     }
 
-    pub fn box_blur(&mut self, target: &mut Image, kernel_size: usize)
+    pub fn get_average_colour(&self) -> olc::Pixel
     {
-        self.convolve(target, kernel_size, |s, (_x, _y)| 1, (kernel_size*kernel_size) as i32);
         let mut average_colour = (0,0,0);
         for &pixel in &self.pixels
         {
@@ -343,9 +342,16 @@ impl Image
         average_colour.0 /= self.pixels.len() as u32;
         average_colour.1 /= self.pixels.len() as u32;
         average_colour.2 /= self.pixels.len() as u32;
+        olc::Pixel::rgb(average_colour.0 as u8, average_colour.1 as u8, average_colour.2 as u8)
+    }
+
+    pub fn box_blur(&self, target: &mut Image, kernel_size: usize)
+    {
+        self.convolve(target, kernel_size, |_s, (_x, _y)| 1, (kernel_size*kernel_size) as i32);
+        let average_colour = self.get_average_colour();
         self.handle_edges(target, kernel_size, 
-            |img, _s, (x,y)|
-            olc::Pixel::rgb(average_colour.0 as u8, average_colour.1 as u8, average_colour.2 as u8)
+            |_, _, _|
+            average_colour
         );
     }
 
