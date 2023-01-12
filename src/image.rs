@@ -126,7 +126,7 @@ impl Image
     /// 
     /// `&self` is the Image from which pixels are read. 
     /// # 
-    /// `target: &mut Image` is a mutable reference to the target Image that the result of the convolution will be written to.
+    /// `target: &mut Image` is the Image that is written to.
     /// # 
     /// `kernel_size`. `handle_edges` assumes a square shaped kernel.
     /// `kernel_size` should be equal to the width or height of the kernel. Or given an example kernel `[0,0,0, 0,0,0, 0,0,0]` with `9` elements, 
@@ -172,18 +172,45 @@ impl Image
         }
     }
 
-    pub fn for_each<F>(&self, ) where F: Fn(olc::Pixel) -> olc::Pixel
+    /// Applies `transformer` to each pixel in the image.
+    /// 
+    /// ## Expected arguments
+    /// `&self` is the Image from which pixels are read.
+    /// 
+    /// `target: &mut Image` is the Image that is written to.
+    /// 
+    /// `tranformer: F` is a function that takes in a pixel, and returns a transformed version of it.
+    /// 
+    /// ## Example
+    /// ```
+    /// pub fn greyscale(&self, target: &mut Image)
+    /// {
+    ///     self.for_each(target,
+    ///         |p|
+    ///         {
+    ///             let brt = p.brightness();
+    ///             olc::Pixel::rgb(brt,brt,brt)
+    ///         }
+    ///     );
+    /// }
+    /// ```
+    pub fn for_each<F>(&self, target: &mut Image, transformer: F) where F: Fn(olc::Pixel) -> olc::Pixel
     {
-
+        for (i, &pixel) in self.pixels.iter().enumerate()
+        {
+            target.pixels[i] = transformer(pixel);
+        }
     }
     
     pub fn greyscale(&self, target: &mut Image)
     {
-        for (i, &pixel) in self.pixels.iter().enumerate()
-        {
-            let brt = pixel.brightness();
-            target.pixels[i] = olc::Pixel::rgb(brt, brt, brt);
-        }
+        self.for_each(target,
+            |p|
+            {
+                let brt = p.brightness();
+                olc::Pixel::rgb(brt,brt,brt)
+            }
+        );
     }
 
     pub fn sharpen_alternative(&self, target: &mut Image)
@@ -222,7 +249,7 @@ impl Image
                     }
                 }  
 
-                let gradient = ((grad_x * grad_x + grad_y * grad_y) as f32).sqrt() as u8;
+                let gradient = ((grad_x * grad_x + grad_y * grad_y) as f32 / 2.0).sqrt() as u8;
                 *target.at_mut(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
             }                   
         }
@@ -306,28 +333,28 @@ impl Image
 
     pub fn threshold(&mut self, target: &mut Image, threshold: u8)
     {
-        for y in 0..self.height
-        {
-            for x in 0..self.width
+        self.for_each(target,
+            |p|
             {
-                let brt = self.at(x,y).brightness();
-                *target.at_mut(x,y) = if brt >= threshold {olc::WHITE} else {olc::BLACK};
+                let brt = p.brightness(); 
+                if brt >= threshold {olc::WHITE} else {olc::BLACK}
             }
-        }
+        );
     }
 
     pub fn threshold_colour(&mut self, target: &mut Image, threshold: u8)
     {
-        for y in 0..self.height
-        {
-            for x in 0..self.width
+        self.for_each(target,
+            |p|
             {
-                let p = self.at(x,y);
-                target.at_mut(x,y).r = (p.r >= threshold) as u8 * 255;
-                target.at_mut(x,y).g = (p.g >= threshold) as u8 * 255;
-                target.at_mut(x,y).b = (p.b >= threshold) as u8 * 255;
+                olc::Pixel::rgb
+                (
+                    (p.r >= threshold) as u8 * 255,
+                    (p.g >= threshold) as u8 * 255,
+                    (p.b >= threshold) as u8 * 255,
+                )
             }
-        }
+        );
     }
 
     pub fn gaussian_blur_3x3(&self, target: &mut Image)
