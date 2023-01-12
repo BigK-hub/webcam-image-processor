@@ -16,7 +16,7 @@ fn main()
     let pixels = (0..width*height).map(|_x| olc::MAGENTA).collect::<Vec<olc::Pixel>>();
     let frame = Image{width,height, pixels};
     
-    let processors = vec![Mode::Sharpen];
+    let processors = vec![Mode::Outline];
     
     let slider = Slider
     {
@@ -54,6 +54,8 @@ enum Mode
     ThresholdColour,
     FloydSteinbergDithering,
     GaussianBlur,
+    Emboss,
+    Outline,
     BoxBlur,
     GreyScale,
     Sharpen,
@@ -184,6 +186,8 @@ impl olc::PGEApplication for Window
                 Mode::ThresholdColour => self.frame.threshold_colour(&mut self.target, pge.get_mouse_x() as u8),
                 Mode::FloydSteinbergDithering =>  self.frame.floyd_steinberg_dithering(&mut self.target, 1),
                 Mode::GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
+                Mode::Emboss => self.frame.emboss(&mut self.target),
+                Mode::Outline => self.frame.outline(&mut self.target),
                 Mode::BoxBlur => self.frame.box_blur(&mut self.target, 5),
                 Mode::GreyScale => self.frame.greyscale(&mut self.target),
                 Mode::Sharpen => self.frame.sharpen(&mut self.target),

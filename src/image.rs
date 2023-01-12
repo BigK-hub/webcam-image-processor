@@ -179,6 +179,7 @@ impl Image
         }
     }
 
+    
     pub fn threshold_colour(&mut self, target: &mut Image, threshold: u8)
     {
         for y in 0..self.height
@@ -194,7 +195,8 @@ impl Image
     }
     pub fn floyd_steinberg_dithering(&mut self, target: &mut Image, bits_per_channel:usize)
     {
-       let max_values_per_channel = if bits_per_channel > 8 {255} else{1 << bits_per_channel};
+        let max_values_per_channel = if bits_per_channel > 8 {255} else{1 << bits_per_channel};
+        let add = |factor:i32, error:i32| error as f32 * factor as f32 /16.0;
 
         for y in 0..self.height
         {
@@ -219,30 +221,43 @@ impl Image
                 let error_r = old_pixel.r as i32 - new_r as i32;
                 let error_g = old_pixel.g as i32 - new_g as i32;
                 let error_b = old_pixel.b as i32 - new_b as i32;
+
                 
-                let add = |factor:i32, error:i32| error as f32 * factor as f32 /16.0;
+
                 let mut pixel = *target.at(x+1, y);
-                pixel.r += add(7,error_r) as u8;
-                pixel.g += add(7,error_g) as u8;
-                pixel.b += add(7,error_b) as u8;
+                let mut new_pixel = (pixel.r as i32 + add(7,error_r) as i32,
+                                                     pixel.g as i32+ add(7,error_g) as i32, 
+                                                     pixel.b as i32+ add(7,error_b) as i32);
+                pixel.r = new_pixel.0 as u8;
+                pixel.g = new_pixel.1 as u8;
+                pixel.b = new_pixel.2 as u8;
                 *target.at_mut(x+1, y) = pixel;
 
                 pixel = *target.at(x-1, y+1);
-                pixel.r += add(3,error_r) as u8;
-                pixel.g += add(3,error_g) as u8;
-                pixel.b += add(3,error_b) as u8;
+                new_pixel = (pixel.r as i32 + add(3,error_r) as i32,
+                            pixel.g as i32+ add(3,error_g) as i32, 
+                            pixel.b as i32+ add(3,error_b) as i32);
+                pixel.r = new_pixel.0 as u8;
+                pixel.g = new_pixel.1 as u8;
+                pixel.b = new_pixel.2 as u8;
                 *target.at_mut(x-1, y+1) = pixel;
 
                 pixel = *target.at(x, y+1);
-                pixel.r += add(5,error_r) as u8;
-                pixel.g += add(5,error_g) as u8;
-                pixel.b += add(5,error_b) as u8;
+                new_pixel = (pixel.r as i32 + add(5,error_r) as i32,
+                            pixel.g as i32+ add(5,error_g) as i32, 
+                            pixel.b as i32+ add(5,error_b) as i32);
+                pixel.r = new_pixel.0 as u8;
+                pixel.g = new_pixel.1 as u8;
+                pixel.b = new_pixel.2 as u8;
                 *target.at_mut(x, y+1) = pixel;
 
                 pixel = *target.at(x+1, y+1);
-                pixel.r += add(1,error_r) as u8;
-                pixel.g += add(1,error_g) as u8;
-                pixel.b += add(1,error_b) as u8;
+                new_pixel = (pixel.r as i32 + add(1,error_r) as i32,
+                            pixel.g as i32+ add(1,error_g) as i32, 
+                            pixel.b as i32+ add(1,error_b) as i32);
+                pixel.r = new_pixel.0 as u8;
+                pixel.g = new_pixel.1 as u8;
+                pixel.b = new_pixel.2 as u8;
                 *target.at_mut(x+1, y+1) = pixel;
                 
             }
@@ -263,7 +278,34 @@ impl Image
             *img.at(x,y)
         );
     }
-
+    pub fn emboss(&mut self, target: &mut Image)
+    {
+        self.convolve(target, 3, |s, (x,y)|
+            [
+                -2., -1., 0.,
+                -1., 1., 1.,
+                0., 1., 2.
+            ][y*s+x]
+        );
+        self.handle_edges(target,3,
+            |img, _s, (x,y)|
+            *img.at(x,y)
+        );
+    }
+    pub fn outline(&mut self, target: &mut Image)
+    {
+        self.convolve(target, 3, |s, (x,y)|
+            [
+                -1., -1., -1.,
+                -1., 8., -1.,
+                -1., -1., -1.
+            ][y*s+x]
+        );
+        self.handle_edges(target,3,
+            |img, _s, (x,y)|
+            *img.at(x,y)
+        );
+    }
     pub fn box_blur(&mut self, target: &mut Image, kernel_size: usize)
     {
         self.convolve(target, kernel_size, |s, (_x, _y)| 1.0/ (s * s ) as f32);
