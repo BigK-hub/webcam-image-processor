@@ -92,7 +92,7 @@ impl Image
     {
         let s_y = 
         [-1, 0,-1,
-          0, 4, 0,
+          0, 5, 0,
          -1, 0,-1];
    
         let s_x = 
@@ -110,42 +110,23 @@ impl Image
                     *target.at_mut(x, y) = olc::BLACK;
                     continue;
                 }
-                let at_top_left =      self.at(x - 1,   y - 1   ).brightness() as i32;
-                let at_top_middle =    self.at(x,       y - 1   ).brightness() as i32;
-                let at_top_right =     self.at(x + 1,   y - 1   ).brightness() as i32;
-                let at_left =          self.at(x - 1,   y       ).brightness() as i32;
-                let at_middle =        self.at(x,       y       ).brightness() as i32;
-                let at_right =         self.at(x + 1,   y       ).brightness() as i32;
-                let at_bottom_left =   self.at(x - 1,   y + 1   ).brightness() as i32;
-                let at_bottom_middle=  self.at(x,       y + 1   ).brightness() as i32;
-                let at_bottom_right =  self.at(x + 1,   y + 1   ).brightness() as i32;
+                let mut grad_y = 0;
+                let mut grad_x = 0;
+                for kernel_y in 0..3
+                {
+                    for kernel_x in 0..3
+                    {
+                        let kernel_value_x = s_x[kernel_y*3+kernel_x];
+                        let kernel_value_y = s_y[kernel_y*3+kernel_x];
+                        let value = self.at(x - 3/2 + kernel_x, y - 3/2 + kernel_y).brightness() as i32;
+                        grad_x += value * kernel_value_x;
+                        grad_y += value * kernel_value_y;
+                    }
+                }  
 
-                let grad_x = 
-                s_x[0] * at_top_left +
-                s_x[1] * at_top_middle +
-                s_x[2] * at_top_right +
-                s_x[3] * at_left +
-                s_x[4] * at_middle +
-                s_x[5] * at_right +
-                s_x[6] * at_bottom_left +
-                s_x[7] * at_bottom_middle +
-                s_x[8] * at_bottom_right;
+                //let gradient = ((grad_x * grad_x + grad_y * grad_y) as f32).sqrt() as u8;
+                let gradient = ( (grad_x.abs() + grad_y.abs()) / 2 ).min(255).max(0) as u8;
 
-                let grad_y = 
-                s_y[0] * at_top_left +
-                s_y[1] * at_top_middle +
-                s_y[2] * at_top_right +
-                s_y[3] * at_left +
-                s_y[4] * at_middle +
-                s_y[5] * at_right +
-                s_y[6] * at_bottom_left +
-                s_y[7] * at_bottom_middle +
-                s_y[8] * at_bottom_right;    
-
-                let gradient = ((grad_x * grad_x + grad_y * grad_y) as f32).sqrt() as u8;
-                let gradient = (grad_x.abs() + grad_y.abs()) as u8 / 2;
-
-                unimplemented!();
                 *target.at_mut(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
             }                   
         }
@@ -153,10 +134,7 @@ impl Image
 
     pub fn sharpen(&self, target: &mut Image)
     {
-        let kernel = 
-        [0, -1, 0,
-         -1 ,5, -1,
-         0, -1, 0];
+        let kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0];
 
         for y in 0..self.height
         {
@@ -168,28 +146,18 @@ impl Image
                     *target.at_mut(x, y) = olc::BLACK;
                     continue;
                 }
-                let at_top_left =      self.at(x - 1,   y - 1   ).brightness() as i32;
-                let at_top_middle =    self.at(x,       y - 1   ).brightness() as i32;
-                let at_top_right =     self.at(x + 1,   y - 1   ).brightness() as i32;
-                let at_left =          self.at(x - 1,   y       ).brightness() as i32;
-                let at_middle =        self.at(x,       y       ).brightness() as i32;
-                let at_right =         self.at(x + 1,   y       ).brightness() as i32;
-                let at_bottom_left =   self.at(x - 1,   y + 1   ).brightness() as i32;
-                let at_bottom_middle=  self.at(x,       y + 1   ).brightness() as i32;
-                let at_bottom_right =  self.at(x + 1,   y + 1   ).brightness() as i32;
+                let mut output = 0;
+                for kernel_y in 0..3
+                {
+                    for kernel_x in 0..3
+                    {
+                        let kernel_value = kernel[kernel_y*3+kernel_x];
+                        let brightness = self.at(x - 3/2 + kernel_x, y - 3/2 + kernel_y).brightness() as i32;
+                        output += brightness * kernel_value;
+                    }
+                }
 
-                let value = 
-                kernel[0] * at_top_left +
-                kernel[1] * at_top_middle +
-                kernel[2] * at_top_right +
-                kernel[3] * at_left +
-                kernel[4] * at_middle +
-                kernel[5] * at_right +
-                kernel[6] * at_bottom_left +
-                kernel[7] * at_bottom_middle +
-                kernel[8] * at_bottom_right;
-
-                let value = value.min(255).max(0) as u8;
+                let value = output.min(255).max(0) as u8;
                 *target.at_mut(x, y) = olc::Pixel::rgb(value, value, value);
             }                   
         }
@@ -353,7 +321,7 @@ impl Image
             }                   
         }
     }
-    
+
     pub fn cross_blur(&mut self, target: &mut Image)
     {
         let s_y =  [   -1, 1,-1,
