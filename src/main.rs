@@ -51,7 +51,7 @@ fn get_pixel_size_input() -> usize
     {
         match input.trim().parse::<usize>()
         {
-            Err(e) => println!("Invalid input. Input must be a natural number between 1 and 32. Recommended values are: 1, 2, 4, and 8."),
+            Err(_e) => println!("Invalid input. Input must be a natural number between 1 and 32. Recommended values are: 1, 2, 4, and 8."),
             Ok(num) => if num <= 32 && num >= 1{break num} else{println!("Value was outside of permissible range. Enter a value between 1 and 32.");},
         };
         std::io::stdin().read_line(&mut input).unwrap();
@@ -76,6 +76,8 @@ enum Processor
     CrossBlur,
 }
 
+#[allow(dead_code)]
+#[derive(PartialEq, Clone, Copy)]
 enum InputMode
 {
     Normal, 
@@ -121,28 +123,6 @@ impl Slider
         let delta_val = self.end_val as i32 - self.start_val as i32;
         self.current_val as i32 * self.w / delta_val + self.x 
     }
-}
-
-fn save_image_as_png(image: &Image)
-{
-    let pathstring = String::from("image_") + &std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_micros().to_string() + ".png";
-    let file = std::fs::File::create(std::path::Path::new(&pathstring)).unwrap();
-    let ref mut w = std::io::BufWriter::new(file);
-    let mut encoder = png::Encoder::new(w, image.width as u32, image.height as u32); 
-    encoder.set_color(png::ColorType::Rgba);
-    encoder.set_depth(png::BitDepth::Eight);
-    encoder.set_source_gamma(png::ScaledFloat::from_scaled(45455)); // 1.0 / 2.2, scaled by 100000
-    encoder.set_source_gamma(png::ScaledFloat::new(1.0 / 2.2));     // 1.0 / 2.2, unscaled, but rounded
-    let source_chromaticities = png::SourceChromaticities::new
-    (   // Using unscaled instantiation here
-        (0.31270, 0.32900),
-        (0.64000, 0.33000),
-        (0.30000, 0.60000),
-        (0.15000, 0.06000)
-    );
-    encoder.set_source_chromaticities(source_chromaticities);
-    let mut writer = encoder.write_header().unwrap();
-    writer.write_image_data(&image.pixels.iter().map(|p| [p.r, p.g, p.b, p.a]).flatten().collect::<Vec<u8>>()).unwrap();
 }
 
 struct Window
@@ -287,6 +267,19 @@ impl olc::PGEApplication for Window
             self.processors[0] = unsafe{std::mem::transmute::<u8, Processor>(val)};
             self.slider.current_val = val as u32;
         }
+        if pge.get_key(olc::Key::Down).pressed
+        {
+            let lower = self.input_mode as i32 - 1;
+            let val = if lower < 0 {Processor::CrossBlur as u8} else {lower as u8};
+            self.processors[0] = unsafe{std::mem::transmute::<u8, Processor>(val)};
+            self.slider.current_val = val as u32;
+        }
+        if pge.get_key(olc::Key::Up).pressed
+        {
+            let val = ( (self.processors[0] as i32 + 1) % (Processor::CrossBlur as i32 + 1) ) as u8;
+            self.processors[0] = unsafe{std::mem::transmute::<u8, Processor>(val)};
+            self.slider.current_val = val as u32;
+        }
 
         for y in 0..pge.screen_height()
         {
@@ -303,4 +296,26 @@ impl olc::PGEApplication for Window
         }
         true
     }
+}
+
+fn save_image_as_png(image: &Image)
+{
+    let pathstring = String::from("image_") + &format!("{:x}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_micros()) + ".png";
+    let file = std::fs::File::create(std::path::Path::new(&pathstring)).unwrap();
+    let ref mut w = std::io::BufWriter::new(file);
+    let mut encoder = png::Encoder::new(w, image.width as u32, image.height as u32); 
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder.set_source_gamma(png::ScaledFloat::from_scaled(45455)); // 1.0 / 2.2, scaled by 100000
+    encoder.set_source_gamma(png::ScaledFloat::new(1.0 / 2.2));     // 1.0 / 2.2, unscaled, but rounded
+    let source_chromaticities = png::SourceChromaticities::new
+    (   // Using unscaled instantiation here
+        (0.31270, 0.32900),
+        (0.64000, 0.33000),
+        (0.30000, 0.60000),
+        (0.15000, 0.06000)
+    );
+    encoder.set_source_chromaticities(source_chromaticities);
+    let mut writer = encoder.write_header().unwrap();
+    writer.write_image_data(&image.pixels.iter().map(|p| [p.r, p.g, p.b, p.a]).flatten().collect::<Vec<u8>>()).unwrap();
 }
