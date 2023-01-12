@@ -172,6 +172,11 @@ impl Image
         }
     }
 
+    pub fn for_each<F>(&self, ) where F: Fn(olc::Pixel) -> olc::Pixel
+    {
+
+    }
+    
     pub fn greyscale(&self, target: &mut Image)
     {
         for (i, &pixel) in self.pixels.iter().enumerate()

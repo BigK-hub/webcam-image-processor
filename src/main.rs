@@ -219,6 +219,11 @@ impl olc::PGEApplication for Window
     }
     fn on_user_update(&mut self, pge: &mut olc::PixelGameEngine, _delta: f32) -> bool
     {
+        if !pge.is_focused()
+        {
+            std::thread::sleep(std::time::Duration::from_millis(80));
+            return true;
+        }
         self.pre_process_input();
         
         for processor in &self.processors
@@ -232,7 +237,7 @@ impl olc::PGEApplication for Window
                 Processor::Threshold => self.frame.threshold(&mut self.target, (pge.get_mouse_x()*255/ pge.screen_width() as i32) as u8),
                 Processor::ThresholdColour => self.frame.threshold_colour(&mut self.target, (pge.get_mouse_x()*255/ pge.screen_width() as i32) as u8),
                 Processor::GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
-                Processor::BoxBlur => self.frame.box_blur(&mut self.target, (((pge.get_mouse_x()*255/ pge.screen_width() as i32 )/2)*2 + 1).min((pge.screen_width() as i32/2)*2 - 1) as usize),
+                Processor::BoxBlur => self.frame.box_blur(&mut self.target, (((pge.get_mouse_x()*255/ pge.screen_width() as i32 )/2)*2 + 1).min((pge.screen_width() as i32/2)*2 - 1).min(39) as usize),
                 Processor::GreyScale => self.frame.greyscale(&mut self.target),
                 Processor::Sharpen => self.frame.sharpen(&mut self.target),
                 Processor::SharpenColour => self.frame.sharpen_colour(&mut self.target),
@@ -240,6 +245,7 @@ impl olc::PGEApplication for Window
             };
         }
 
+        
         if pge.get_mouse(0).held
         {
             let value = self.slider.get_value(pge.get_mouse_x(), pge.get_mouse_y());
