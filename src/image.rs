@@ -11,6 +11,9 @@ pub struct Image
 
 impl Image
 {
+    /// returns immutable reference to pixel at x,y in the Image.
+    /// 
+    /// panics when coordinates are invalid.
     pub fn at(&self, x: usize, y: usize) -> &olc::Pixel
     {
         if x >= self.width || y >= self.height
@@ -20,6 +23,9 @@ impl Image
         &self.pixels[y*self.width+x]
     }
 
+    /// returns mutable reference to pixel at x,y in the Image.
+    /// 
+    /// panics when coordinates are invalid.
     pub fn at_mut(&mut self, x: usize, y: usize) -> &mut olc::Pixel
     {
         if x >= self.width || y >= self.height
@@ -29,6 +35,60 @@ impl Image
         &mut self.pixels[y*self.width+x]
     }
 
+    /// **Not** a [mathematical convolution].
+    /// 
+    /// 
+    /// This function applies one [kernel] to an image and should be paired with the [handle_edges] function.
+    /// 
+    /// The kernel is applied to each channel, resulting in colourful images.
+    /// 
+    /// ## Expected arguments
+    /// 
+    /// `&self` is the Image from which pixels are read. 
+    /// # 
+    /// `target: &mut Image` is a mutable reference to the target Image that the result of the convolution will be written to.
+    /// # 
+    /// `kernel_size`. The convolve function assumes a square shaped kernel.
+    /// `kernel_size` should be equal to the width or height of the kernel. Or given an example kernel `[0,0,0, 0,0,0, 0,0,0]` with `9` elements, 
+    /// `kernel_size` should be equal to `sqrt(9)`. 
+    /// # 
+    /// `kernel_generator`. It is a function object that takes in 
+    /// `kernel_size: usize, (kernel_x: usize, kernel_y: usize)`
+    /// and returns an `i32`, representing an integer multiple of `1/denominator`.
+    /// # 
+    /// `denominator`. It can be thought of as the "divisor". Since convolve only uses integers, 
+    /// fractions are represented by multiplying the kernel values with 1/denominator. 
+    /// 
+    /// Hence a kernel `[2,2,2, 4,4,4, 2,2,2]`, combined with the denominator equal to `4`, 
+    /// works the same as applying this kernel with these floating point values:
+    /// 
+    /// `[0.5,0.5,0.5, 1.0,1.0,1.0, 0.5,0.5,0.5]`.
+    /// 
+    /// ## Example
+    /// ```rust
+    /// pub fn box_blur(&self, target: &mut Image)
+    /// {
+    ///     self.convolve(target, 3, |s,(x,y)| 1, 9); // here kernel_generator always returns 1
+    ///     // self.handle_edges(target, 3,
+    ///     // |img, _s, (x,y)|
+    ///     // *img.at(x,y)
+    ///     // );
+    /// }
+    /// ```
+    /// 
+    /// Returning `1` with the `denominator` being `9` has the effect of multiplying the pixel with `1/9`.
+    /// 
+    /// ## When to use
+    /// 
+    /// This function gets rid of a lot of redundancy for image processing effects that:
+    /// - make use of a kernel
+    /// - only have one kernel
+    /// - apply their kernel to each channel
+    /// 
+    /// If any of these do not apply, convolve will probably not be very useful.
+    /// 
+    /// [kernel]: https://en.wikipedia.org/wiki/Kernel_(image_processing)
+    /// [mathematical convolution]: https://en.wikipedia.org/wiki/Convolution
     pub fn convolve<F>(&self, target: &mut Image, kernel_size: usize, mut kernel_generator: F, denominator: i32) where F: FnMut(usize, (usize, usize)) -> i32
     {
         if denominator == 0 {panic!("In function convolve of Image, denominator argument may not equal 0.");}
@@ -59,6 +119,39 @@ impl Image
         }
     }
 
+
+    /// Also called padding, this function handles the pixels that an [image processing kernel] couldn't reach.
+    /// 
+    /// ## Expected arguments
+    /// 
+    /// `&self` is the Image from which pixels are read. 
+    /// # 
+    /// `target: &mut Image` is a mutable reference to the target Image that the result of the convolution will be written to.
+    /// # 
+    /// `kernel_size`. `handle_edges` assumes a square shaped kernel.
+    /// `kernel_size` should be equal to the width or height of the kernel. Or given an example kernel `[0,0,0, 0,0,0, 0,0,0]` with `9` elements, 
+    /// `kernel_size` should be equal to `sqrt(9)`. 
+    /// # 
+    /// `edge_handler` is a function object that, unlike the kernel generator in `convolve()`, takes in 
+    /// 
+    /// `kernel_size: usize, (image_x: usize, image_y: usize)`, and returns an `olc::Pixel` instead of an `i32`, which the target pixel will be set to.
+    /// 
+    /// The x and y in this function do **not** represent the coordinates of the kernel values.
+    /// 
+    /// ## Example
+    /// ```rust
+    /// pub fn box_blur(&self, target: &mut Image)
+    /// {
+    ///     // self.convolve(target, 3, |s,(x,y)| 1, 9);
+    ///     self.handle_edges(target, 3,
+    ///     |img, _s, (x,y)|
+    ///     *img.at(x,y) // here the `edge_handler` just returns the original colour of the image.
+    ///     );
+    /// }
+    /// ```
+    /// 
+    /// 
+    /// [image processing kernel]: https://en.wikipedia.org/wiki/Kernel_(image_processing)
     pub fn handle_edges<F>(&self, target: &mut Image, kernel_size: usize, mut edge_handler: F) where F: FnMut(&Image, usize, (usize, usize)) -> olc::Pixel
     {
         for y in (0..kernel_size/2).chain(self.height - kernel_size/2 .. self.height)
@@ -124,9 +217,7 @@ impl Image
                     }
                 }  
 
-                //let gradient = ((grad_x * grad_x + grad_y * grad_y) as f32).sqrt() as u8;
-                let gradient = ( (grad_x.abs() + grad_y.abs()) / 2 ).min(255).max(0) as u8;
-
+                let gradient = ((grad_x * grad_x + grad_y * grad_y) as f32).sqrt() as u8;
                 *target.at_mut(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
             }                   
         }
@@ -187,40 +278,23 @@ impl Image
                     *target.at_mut(x, y) = olc::BLACK;
                     continue;
                 }
-                let at_top_left =      self.at(x - 1,   y - 1   ).brightness() as i32;
-                let at_top_middle =    self.at(x,       y - 1   ).brightness() as i32;
-                let at_top_right =     self.at(x + 1,   y - 1   ).brightness() as i32;
-                let at_left =          self.at(x - 1,   y       ).brightness() as i32;
-                let at_middle =        self.at(x,       y       ).brightness() as i32;
-                let at_right =         self.at(x + 1,   y       ).brightness() as i32;
-                let at_bottom_left =   self.at(x - 1,   y + 1   ).brightness() as i32;
-                let at_bottom_middle=  self.at(x,       y + 1   ).brightness() as i32;
-                let at_bottom_right =  self.at(x + 1,   y + 1   ).brightness() as i32;
+                let mut val_x = 0;
+                let mut val_y = 0;
+                for kernel_y in 0..3
+                {
+                    for kernel_x in 0..3
+                    {
+                        let ix = x + kernel_x - 1;
+                        let iy = y + kernel_y - 1;
+                        let ik = kernel_y * 3 + kernel_x;
+                        let current_brightness = self.at(ix,iy).brightness();
+                        val_x += current_brightness as i32 * s_x[ik];
+                        val_y += current_brightness as i32 * s_y[ik];
+                    }
+                }
 
-                let grad_x = 
-                s_x[0] * at_top_left +
-                s_x[1] * at_top_middle +
-                s_x[2] * at_top_right +
-                s_x[3] * at_left +
-                s_x[4] * at_middle +
-                s_x[5] * at_right +
-                s_x[6] * at_bottom_left +
-                s_x[7] * at_bottom_middle +
-                s_x[8] * at_bottom_right;
-
-                let grad_y = 
-                s_y[0] * at_top_left +
-                s_y[1] * at_top_middle +
-                s_y[2] * at_top_right +
-                s_y[3] * at_left + 
-                s_y[4] * at_middle +
-                s_y[5] * at_right +
-                s_y[6] * at_bottom_left +
-                s_y[7] * at_bottom_middle +
-                s_y[8] * at_bottom_right;
-
-                let gradient: u8 = ((grad_x * grad_x + grad_y * grad_y)as f32).sqrt() as u8 ; 
-                *target.at_mut(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
+                let value = ((val_x*val_x + val_y*val_y) as f32).sqrt() as u8;
+                *target.at_mut(x, y) = olc::Pixel::rgb(value, value, value);
             }                   
         }
     }
@@ -335,40 +409,23 @@ impl Image
         {
             for x in 1..self.width - 1
             {
-                let at_top_left =      self.at(x - 1,   y - 1   ).brightness() as i32;
-                let at_top_middle =    self.at(x,       y - 1   ).brightness() as i32;
-                let at_top_right =     self.at(x + 1,   y - 1   ).brightness() as i32;
-                let at_left =          self.at(x - 1,   y       ).brightness() as i32;
-                let at_middle =        self.at(x,       y       ).brightness() as i32;
-                let at_right =         self.at(x + 1,   y       ).brightness() as i32;
-                let at_bottom_left =   self.at(x - 1,   y + 1   ).brightness() as i32;
-                let at_bottom_middle=  self.at(x,       y + 1   ).brightness() as i32;
-                let at_bottom_right =  self.at(x + 1,   y + 1   ).brightness() as i32;
+                let mut val_x = 0;
+                let mut val_y = 0;
+                for kernel_y in 0..3
+                {
+                    for kernel_x in 0..3
+                    {
+                        let ix = x + kernel_x - 1;
+                        let iy = y + kernel_y - 1;
+                        let ik = kernel_y * 3 + kernel_x;
+                        let current_brightness = self.at(ix,iy).brightness();
+                        val_x += current_brightness as i32 * s_x[ik];
+                        val_y += current_brightness as i32 * s_y[ik];
+                    }
+                }
 
-                let grad_x = 
-                s_x[0] * at_top_left +
-                s_x[1] * at_top_middle +
-                s_x[2] * at_top_right +
-                s_x[3] * at_left +
-                s_x[4] * at_middle +
-                s_x[5] * at_right +
-                s_x[6] * at_bottom_left +
-                s_x[7] * at_bottom_middle +
-                s_x[8] * at_bottom_right;
-
-                let grad_y = 
-                s_y[0] * at_top_left +
-                s_y[1] * at_top_middle +
-                s_y[2] * at_top_right +
-                s_y[3] * at_left + 
-                s_y[4] * at_middle +
-                s_y[5] * at_right +
-                s_y[6] * at_bottom_left +
-                s_y[7] * at_bottom_middle +
-                s_y[8] * at_bottom_right;
-
-                let gradient: u8 = ((grad_x * grad_x + grad_y * grad_y) as f32).sqrt() as u8; 
-                *target.at_mut(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
+                let value = ((val_x*val_x + val_y*val_y) as f32).sqrt() as u8;
+                *target.at_mut(x, y) = olc::Pixel::rgb(value, value, value);
             }
         }
     }

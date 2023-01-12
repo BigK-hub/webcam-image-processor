@@ -6,12 +6,11 @@ use olc_pge as olc;
 use camera_capture;
 use pixel_traits::*;
 
-const AMOUNT_OF_MODES:usize = 11;
-const MODE_NAMES: [&str; AMOUNT_OF_MODES] = ["Normal", "Sobel", "SobelColour", "Threshold", "ThresholdColour", "GaussianBlur", "BoxBlur", "GreyScale", "Sharpen", "SharpenColour", "CrossBlur"];
+const MODE_NAMES: [&str; 11] = ["Normal", "Sobel", "SobelColour", "Threshold", "ThresholdColour", "GaussianBlur", "BoxBlur", "GreyScale", "Sharpen", "SharpenColour", "CrossBlur"];
 
 fn main()
 {
-    let pixelsize = 2;//get_pixel_size_input();
+    let pixelsize = get_pixel_size_input();
     let width = 2*640/pixelsize;
     let height = width * 9 / 16;
     
