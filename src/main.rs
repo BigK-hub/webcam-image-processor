@@ -6,10 +6,12 @@ use olc_pge as olc;
 use camera_capture;
 use pixel_traits::*;
 
-const MODE_NAMES: [&str; 11] = ["Normal", "Sobel", "SobelColour", "Threshold", "ThresholdColour", "GaussianBlur", "BoxBlur", "GreyScale", "Sharpen", "SharpenColour", "CrossBlur"];
+const INPUT_MODE_NAMES: [&str; 3] = ["Normal", "TimeBlend", "Denoising"];
+const PROCESSOR_NAMES: [&str; 13] = ["Normal", "Sobel", "SobelColour", "Threshold", "ThresholdColour", "FloydSteinbergDithering", "GaussianBlur", "BoxBlur", "GreyScale", "ChromaticAberration", "Sharpen", "SharpenColour", "CrossBlur"];
 
 fn main()
 {
+    println!("Make sure you have escapi.dll in the same folder as this executable.");
     let pixelsize = get_pixel_size_input();
     let width = 640/pixelsize;
     let height = width * 9 / 16;
@@ -72,6 +74,7 @@ enum Processor
     GaussianBlur,
     BoxBlur,
     GreyScale,
+    ChromaticAberration,
     Sharpen,
     SharpenColour,
     CrossBlur,
@@ -184,7 +187,7 @@ impl Window
                     g -= pa.g as u32 * fraction.0;
                     b -= pa.b as u32 * fraction.0;
 
-                    r += pb.a as u32 * fraction.0;
+                    r += pb.r as u32 * fraction.0;
                     g += pb.g as u32 * fraction.0;
                     b += pb.b as u32 * fraction.0;
 
@@ -218,6 +221,11 @@ impl olc::PGEApplication for Window
     }
     fn on_user_update(&mut self, pge: &mut olc::PixelGameEngine, _delta: f32) -> bool
     {
+        if !pge.is_focused()
+        {
+            std::thread::sleep(std::time::Duration::from_millis(80));
+            return true;
+        }
         self.pre_process_input();
         
         for processor in &self.processors
@@ -232,14 +240,16 @@ impl olc::PGEApplication for Window
                 Processor::ThresholdColour => self.frame.threshold_colour(&mut self.target, (pge.get_mouse_x()*255/ pge.screen_width() as i32) as u8),
                 Processor::FloydSteinbergDithering =>  self.frame.floyd_steinberg_dithering(&mut self.target, 1),
                 Processor::GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
-                Processor::BoxBlur => self.frame.box_blur(&mut self.target, (((pge.get_mouse_x()*255/ pge.screen_width() as i32 )/2)*2 + 1).min(51) as usize),
+                Processor::BoxBlur => self.frame.box_blur(&mut self.target, ((((pge.get_mouse_x() * 255 / pge.screen_width() as i32 )/2)*2 + 1) as usize).min((pge.screen_width()/2)*2 - 1).max(3)),
                 Processor::GreyScale => self.frame.greyscale(&mut self.target),
+                Processor::ChromaticAberration => self.frame.chromatic_aberration(&mut self.target, (pge.get_mouse_x() as usize * 255/ pge.screen_width())/20),
                 Processor::Sharpen => self.frame.sharpen(&mut self.target),
                 Processor::SharpenColour => self.frame.sharpen_colour(&mut self.target),
                 Processor::CrossBlur => self.frame.cross_blur(&mut self.target),
             };
         }
 
+        
         if pge.get_mouse(0).held
         {
             let value = self.slider.get_value(pge.get_mouse_x(), pge.get_mouse_y());
@@ -292,7 +302,22 @@ impl olc::PGEApplication for Window
         {
             pge.fill_rect(self.slider.x + 2, self.slider.y, self.slider.w as u32, self.slider.h as u32, olc::Pixel::rgb(70, 150, 140));
             pge.fill_rect(self.slider.get_slider_x(), self.slider.y, 2, self.slider.h as u32, olc::Pixel::rgb(200, 235, 225));
-            pge.draw_string(5, pge.screen_height() as i32 - 10, &MODE_NAMES[self.processors[0] as usize].to_string(), olc::WHITE);
+            pge.draw_string(5, pge.screen_height() as i32 - 25, &"Processor:".to_string(), olc::WHITE);
+            
+            pge.draw_string(5, pge.screen_height() as i32 - 10, &PROCESSOR_NAMES[self.processors[0] as usize].to_string(), olc::WHITE);
+            pge.draw_string(pge.screen_width() as i32 - 80, pge.screen_height() as i32 - 25, &"InputMode:".to_string(), olc::WHITE);
+            pge.draw_string(pge.screen_width() as i32 - 80, pge.screen_height() as i32 - 10, &INPUT_MODE_NAMES[self.input_mode as usize].to_string(), olc::WHITE);
+            
+            pge.draw_string(pge.screen_width() as i32 - 145, 3, &"[<] Processors [>]".to_string(), olc::WHITE);
+            
+            let inputy = 25;
+            pge.draw_string(pge.screen_width() as i32 - 65  , inputy - 8, &"[^]".to_string()        , olc::WHITE);
+            pge.draw_string(pge.screen_width() as i32 - 100 , inputy    , &"Input Modes".to_string(), olc::WHITE);
+            pge.draw_string(pge.screen_width() as i32 - 65  , inputy + 8, &"[v]".to_string()        , olc::WHITE);
+            
+            let keysy = 50;
+            pge.draw_string(pge.screen_width() as i32 - 120, keysy, &"[H] hide UI".to_string(), olc::WHITE);
+            pge.draw_string(pge.screen_width() as i32 - 120, keysy+10, &"[S] save image".to_string(), olc::WHITE);
         }
         true
     }

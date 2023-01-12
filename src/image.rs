@@ -126,7 +126,7 @@ impl Image
     /// 
     /// `&self` is the Image from which pixels are read. 
     /// # 
-    /// `target: &mut Image` is a mutable reference to the target Image that the result of the convolution will be written to.
+    /// `target: &mut Image` is the Image that is written to.
     /// # 
     /// `kernel_size`. `handle_edges` assumes a square shaped kernel.
     /// `kernel_size` should be equal to the width or height of the kernel. Or given an example kernel `[0,0,0, 0,0,0, 0,0,0]` with `9` elements, 
@@ -152,7 +152,7 @@ impl Image
     /// 
     /// 
     /// [image processing kernel]: https://en.wikipedia.org/wiki/Kernel_(image_processing)
-    pub fn handle_edges<F>(&self, target: &mut Image, kernel_size: usize, mut edge_handler: F) where F: FnMut(&Image, usize, (usize, usize)) -> olc::Pixel
+    pub fn handle_edges<F>(&self, target: &mut Image, kernel_size: usize, edge_handler: F) where F: Fn(&Image, usize, (usize, usize)) -> olc::Pixel
     {
         for y in (0..kernel_size/2).chain(self.height - kernel_size/2 .. self.height)
         {
@@ -172,57 +172,47 @@ impl Image
         }
     }
 
-    pub fn greyscale(&self, target: &mut Image)
+    /// Applies `transformer` to each pixel in the image.
+    /// 
+    /// ## Expected arguments
+    /// `&self` is the Image from which pixels are read.
+    /// 
+    /// `target: &mut Image` is the Image that is written to.
+    /// 
+    /// `tranformer: F` is a function that takes in a pixel, and returns a transformed version of it.
+    /// 
+    /// ## Example
+    /// ```
+    /// pub fn greyscale(&self, target: &mut Image)
+    /// {
+    ///     self.for_each(target,
+    ///         |p|
+    ///         {
+    ///             let brt = p.brightness();
+    ///             olc::Pixel::rgb(brt,brt,brt)
+    ///         }
+    ///     );
+    /// }
+    /// ```
+    pub fn for_each<F>(&self, target: &mut Image, transformer: F) where F: Fn(olc::Pixel) -> olc::Pixel
     {
         for (i, &pixel) in self.pixels.iter().enumerate()
         {
-            let brt = pixel.brightness();
-            target.pixels[i] = olc::Pixel::rgb(brt, brt, brt);
+            target.pixels[i] = transformer(pixel);
         }
     }
-
-    pub fn sharpen_alternative(&self, target: &mut Image)
+    
+    pub fn greyscale(&self, target: &mut Image)
     {
-        let s_y = 
-        [-1, 0,-1,
-          0, 5, 0,
-         -1, 0,-1];
-   
-        let s_x = 
-        [0, -1, 0,
-         -1 ,5, -1,
-         0, -1, 0];
-
-        for y in 0..self.height
-        {
-            for x in 0..self.width
+        self.for_each(target,
+            |p|
             {
-                if !(1..self.width-1).contains(&x)
-                || !(1..self.height-1).contains(&y)
-                {
-                    *target.at_mut(x, y) = olc::BLACK;
-                    continue;
-                }
-                let mut grad_y = 0;
-                let mut grad_x = 0;
-                for kernel_y in 0..3
-                {
-                    for kernel_x in 0..3
-                    {
-                        let kernel_value_x = s_x[kernel_y*3+kernel_x];
-                        let kernel_value_y = s_y[kernel_y*3+kernel_x];
-                        let value = self.at(x - 3/2 + kernel_x, y - 3/2 + kernel_y).brightness() as i32;
-                        grad_x += value * kernel_value_x;
-                        grad_y += value * kernel_value_y;
-                    }
-                }  
-
-                let gradient = ((grad_x * grad_x + grad_y * grad_y) as f32).sqrt() as u8;
-                *target.at_mut(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
-            }                   
-        }
+                let brt = p.brightness();
+                olc::Pixel::rgb(brt,brt,brt)
+            }
+        );
     }
-
+    
     pub fn sharpen(&self, target: &mut Image)
     {
         let kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0];
@@ -247,7 +237,6 @@ impl Image
                         output += brightness * kernel_value;
                     }
                 }
-
                 let value = output.min(255).max(0) as u8;
                 *target.at_mut(x, y) = olc::Pixel::rgb(value, value, value);
             }                   
@@ -299,30 +288,30 @@ impl Image
         }
     }
 
-    pub fn threshold(&mut self, target: &mut Image, threshold: u8)
+    pub fn threshold(&self, target: &mut Image, threshold: u8)
     {
-        for y in 0..self.height
-        {
-            for x in 0..self.width
+        self.for_each(target,
+            |p|
             {
-                let brt = self.at(x,y).brightness();
-                *target.at_mut(x,y) = if brt >= threshold {olc::WHITE} else {olc::BLACK};
+                let brt = p.brightness(); 
+                if brt >= threshold {olc::WHITE} else {olc::BLACK}
             }
-        }
+        );
     }
 
-    pub fn threshold_colour(&mut self, target: &mut Image, threshold: u8)
+    pub fn threshold_colour(&self, target: &mut Image, threshold: u8)
     {
-        for y in 0..self.height
-        {
-            for x in 0..self.width
+        self.for_each(target,
+            |p|
             {
-                let p = self.at(x,y);
-                target.at_mut(x,y).r = (p.r >= threshold) as u8 * 255;
-                target.at_mut(x,y).g = (p.g >= threshold) as u8 * 255;
-                target.at_mut(x,y).b = (p.b >= threshold) as u8 * 255;
+                olc::Pixel::rgb
+                (
+                    (p.r >= threshold) as u8 * 255,
+                    (p.g >= threshold) as u8 * 255,
+                    (p.b >= threshold) as u8 * 255,
+                )
             }
-        }
+        );
     }
     pub fn floyd_steinberg_dithering(&mut self, target: &mut Image, bits_per_channel:usize)
     {
@@ -396,9 +385,54 @@ impl Image
         );
     }
 
-    pub fn box_blur(&mut self, target: &mut Image, kernel_size: usize)
+    pub fn chromatic_aberration(&self, target: &mut Image, offset: usize)
     {
-        self.convolve(target, kernel_size, |s, (_x, _y)| 1, (kernel_size*kernel_size) as i32);
+        for y in 0..self.height-offset
+        {
+            for x in 0..self.width-offset
+            {
+                let r = self.at(x + offset,y + offset).r;
+                target.at_mut(x, y).r = r;
+            }
+        }
+        for y in offset..self.height
+        {
+            for x in offset..self.width
+            {
+                let b = self.at(x - offset,y - offset).b;
+                target.at_mut(x, y).b = b;
+            }
+        }
+        for y in 0..self.height
+        {
+            for x in 0..self.width
+            {
+                if (0..self.height-offset).contains(&y) && (0..self.width-offset).contains(&x)
+                {
+                    let r = self.at(x+offset, y+offset).r;
+                    target.at_mut(x,y).r = r;
+                }
+                else
+                {
+                    target.at_mut(x,y).r = 0;
+                }
+                if (offset..self.height).contains(&y) && (offset..self.width).contains(&x)
+                {
+                    let b = self.at(x - offset, y - offset).b;
+                    target.at_mut(x,y).b = b;
+                }
+                else
+                {
+                    target.at_mut(x,y).b = 0;
+                }
+                let g = self.at(x,y).g;
+                target.at_mut(x, y).g = g;
+            }
+        }
+    }
+
+    pub fn get_average_colour(&self) -> olc::Pixel
+    {
         let mut average_colour = (0,0,0);
         for &pixel in &self.pixels
         {
@@ -409,9 +443,16 @@ impl Image
         average_colour.0 /= self.pixels.len() as u32;
         average_colour.1 /= self.pixels.len() as u32;
         average_colour.2 /= self.pixels.len() as u32;
+        olc::Pixel::rgb(average_colour.0 as u8, average_colour.1 as u8, average_colour.2 as u8)
+    }
+
+    pub fn box_blur(&self, target: &mut Image, kernel_size: usize)
+    {
+        self.convolve(target, kernel_size, |_s, (_x, _y)| 1, (kernel_size*kernel_size) as i32);
+        let average_colour = self.get_average_colour();
         self.handle_edges(target, kernel_size, 
-            |img, _s, (x,y)|
-            olc::Pixel::rgb(average_colour.0 as u8, average_colour.1 as u8, average_colour.2 as u8)
+            |_, _, _|
+            average_colour
         );
     }
 
