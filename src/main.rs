@@ -270,15 +270,13 @@ impl olc::PGEApplication for Window
         if pge.get_key(olc::Key::Down).pressed
         {
             let lower = self.input_mode as i32 - 1;
-            let val = if lower < 0 {Processor::CrossBlur as u8} else {lower as u8};
-            self.processors[0] = unsafe{std::mem::transmute::<u8, Processor>(val)};
-            self.slider.current_val = val as u32;
+            let val = if lower < 0 {InputMode::Denoising as u8} else {lower as u8};
+            self.input_mode = unsafe{std::mem::transmute::<u8, InputMode>(val)};
         }
         if pge.get_key(olc::Key::Up).pressed
         {
-            let val = ( (self.processors[0] as i32 + 1) % (Processor::CrossBlur as i32 + 1) ) as u8;
-            self.processors[0] = unsafe{std::mem::transmute::<u8, Processor>(val)};
-            self.slider.current_val = val as u32;
+            let val = ( (self.input_mode as i32 + 1) % (InputMode::Denoising as i32 + 1) ) as u8;
+            self.input_mode = unsafe{std::mem::transmute::<u8, InputMode>(val)};
         }
 
         for y in 0..pge.screen_height()
