@@ -352,10 +352,29 @@ impl Image
         {
             for x in 0..self.width
             {
+                if (0..self.height-offset).contains(&y) && (0..self.width-offset).contains(&x)
+                {
+                    let r = self.at(x+offset, y+offset).r;
+                    target.at_mut(x,y).r = r;
+                }
+                else
+                {
+                    target.at_mut(x,y).r = 0;
+                }
+                if (offset..self.height).contains(&y) && (offset..self.width).contains(&x)
+                {
+                    let b = self.at(x - offset, y - offset).b;
+                    target.at_mut(x,y).b = b;
+                }
+                else
+                {
+                    target.at_mut(x,y).b = 0;
+                }
                 let g = self.at(x,y).g;
                 target.at_mut(x, y).g = g;
             }
         }
+
     }
 
     pub fn get_average_colour(&self) -> olc::Pixel
