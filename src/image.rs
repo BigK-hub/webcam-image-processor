@@ -330,6 +330,34 @@ impl Image
         );
     }
 
+    pub fn chromatic_aberration(&self, target: &mut Image, offset: usize)
+    {
+        for y in 0..self.height-offset
+        {
+            for x in 0..self.width-offset
+            {
+                let r = self.at(x + offset,y + offset).r;
+                target.at_mut(x, y).r = r;
+            }
+        }
+        for y in offset..self.height
+        {
+            for x in offset..self.width
+            {
+                let b = self.at(x - offset,y - offset).b;
+                target.at_mut(x, y).b = b;
+            }
+        }
+        for y in 0..self.height
+        {
+            for x in 0..self.width
+            {
+                let g = self.at(x,y).g;
+                target.at_mut(x, y).g = g;
+            }
+        }
+    }
+
     pub fn get_average_colour(&self) -> olc::Pixel
     {
         let mut average_colour = (0,0,0);
