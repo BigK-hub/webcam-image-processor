@@ -213,48 +213,6 @@ impl Image
         );
     }
 
-    pub fn sharpen_alternative(&self, target: &mut Image)
-    {
-        let s_y = 
-        [-1, 0,-1,
-          0, 5, 0,
-         -1, 0,-1];
-   
-        let s_x = 
-        [0, -1, 0,
-         -1 ,5, -1,
-         0, -1, 0];
-
-        for y in 0..self.height
-        {
-            for x in 0..self.width
-            {
-                if !(1..self.width-1).contains(&x)
-                || !(1..self.height-1).contains(&y)
-                {
-                    *target.at_mut(x, y) = olc::BLACK;
-                    continue;
-                }
-                let mut grad_y = 0;
-                let mut grad_x = 0;
-                for kernel_y in 0..3
-                {
-                    for kernel_x in 0..3
-                    {
-                        let kernel_value_x = s_x[kernel_y*3+kernel_x];
-                        let kernel_value_y = s_y[kernel_y*3+kernel_x];
-                        let value = self.at(x - 3/2 + kernel_x, y - 3/2 + kernel_y).brightness() as i32;
-                        grad_x += value * kernel_value_x;
-                        grad_y += value * kernel_value_y;
-                    }
-                }  
-
-                let gradient = ((grad_x * grad_x + grad_y * grad_y) as f32 / 2.0).sqrt() as u8;
-                *target.at_mut(x, y) = olc::Pixel::rgb(gradient, gradient, gradient);
-            }                   
-        }
-    }
-
     pub fn sharpen(&self, target: &mut Image)
     {
         let kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0];
