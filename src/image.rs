@@ -18,7 +18,7 @@ impl Image
     {
         if x >= self.width || y >= self.height
         {
-            panic!("in function at() of Image, pixel coordinates exceed image dimensions.");
+            panic!("In function at() of Image, pixel coordinates exceed image dimensions.");
         }
         &self.pixels[y*self.width+x]
     }
@@ -30,7 +30,7 @@ impl Image
     {
         if x >= self.width || y >= self.height
         {
-            panic!("in function at() of Image, pixel coordinates exceed image dimensions.");
+            panic!("In function at() of Image, pixel coordinates exceed image dimensions.");
         }
         &mut self.pixels[y*self.width+x]
     }
@@ -91,7 +91,7 @@ impl Image
     /// [mathematical convolution]: https://en.wikipedia.org/wiki/Convolution
     pub fn convolve<F>(&self, target: &mut Image, kernel_size: usize, mut kernel_generator: F, denominator: i32) where F: FnMut(usize, (usize, usize)) -> i32
     {
-        if denominator == 0 {panic!("In function convolve of Image, denominator argument may not equal 0.");}
+        if denominator == 0 {panic!("In function convolve of Image, denominator may not equal 0.");}
         for y in kernel_size/2..self.height - kernel_size/2
         {
             for x in kernel_size/2..self.width - kernel_size/2
@@ -343,9 +343,19 @@ impl Image
     pub fn box_blur(&mut self, target: &mut Image, kernel_size: usize)
     {
         self.convolve(target, kernel_size, |s, (_x, _y)| 1, (kernel_size*kernel_size) as i32);
+        let mut average_colour = (0,0,0);
+        for &pixel in &self.pixels
+        {
+            average_colour.0 += pixel.r as u32;
+            average_colour.1 += pixel.g as u32;
+            average_colour.2 += pixel.b as u32;
+        }
+        average_colour.0 /= self.pixels.len() as u32;
+        average_colour.1 /= self.pixels.len() as u32;
+        average_colour.2 /= self.pixels.len() as u32;
         self.handle_edges(target, kernel_size, 
             |img, _s, (x,y)|
-            *img.at(x,y)
+            olc::Pixel::rgb(average_colour.0 as u8, average_colour.1 as u8, average_colour.2 as u8)
         );
     }
 

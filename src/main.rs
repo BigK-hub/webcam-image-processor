@@ -11,7 +11,7 @@ const MODE_NAMES: [&str; 11] = ["Normal", "Sobel", "SobelColour", "Threshold", "
 fn main()
 {
     let pixelsize = get_pixel_size_input();
-    let width = 2*640/pixelsize;
+    let width = 640/pixelsize;
     let height = width * 9 / 16;
     
     let cam = camera_capture::create(0).unwrap();
@@ -38,7 +38,7 @@ fn main()
         slider,
         frame
     );
-    olc::PixelGameEngine::construct(window, width, height, pixelsize, pixelsize).start();
+    olc::PixelGameEngine::construct(window, width, height, pixelsize*2, pixelsize*2).start();
 }
 
 fn get_pixel_size_input() -> usize
@@ -247,12 +247,12 @@ impl olc::PGEApplication for Window
                 Processor::Normal => self.target.pixels.copy_from_slice(&self.frame.pixels),
                 Processor::Sobel => self.frame.sobel_edge_detection_3x3(&mut self.target),
                 Processor::SobelColour => self.frame.sobel_edge_detection_3x3_colour(&mut self.target),
-                Processor::Threshold => self.frame.threshold(&mut self.target, pge.get_mouse_x() as u8),
-                Processor::ThresholdColour => self.frame.threshold_colour(&mut self.target, pge.get_mouse_x() as u8),
+                Processor::Threshold => self.frame.threshold(&mut self.target, (pge.get_mouse_x()*255/ pge.screen_width() as i32) as u8),
+                Processor::ThresholdColour => self.frame.threshold_colour(&mut self.target, (pge.get_mouse_x()*255/ pge.screen_width() as i32) as u8),
                 Processor::GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
-                Processor::BoxBlur => self.frame.box_blur(&mut self.target, 5),
+                Processor::BoxBlur => self.frame.box_blur(&mut self.target, (((pge.get_mouse_x()*255/ pge.screen_width() as i32 )/2)*2 + 1).min(51) as usize),
                 Processor::GreyScale => self.frame.greyscale(&mut self.target),
-                Processor::Sharpen => self.frame.sharpen_alternative(&mut self.target),
+                Processor::Sharpen => self.frame.sharpen(&mut self.target),
                 Processor::SharpenColour => self.frame.sharpen_colour(&mut self.target),
                 Processor::CrossBlur => self.frame.cross_blur(&mut self.target),
             };
