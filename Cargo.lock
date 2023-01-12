@@ -989,17 +989,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "two_fella_project"
-version = "0.1.0"
-dependencies = [
- "camera_capture",
- "fastrand",
- "lerp",
- "olc-pge",
- "png 0.17.7",
-]
-
-[[package]]
 name = "unicode-ident"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1161,6 +1150,17 @@ checksum = "bcda906d8be16e728fd5adc5b729afad4e444e106ab28cd1c7256e54fa61510f"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "webcam_image_processor"
+version = "0.1.0"
+dependencies = [
+ "camera_capture",
+ "fastrand",
+ "lerp",
+ "olc-pge",
+ "png 0.17.7",
 ]
 
 [[package]]
