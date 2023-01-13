@@ -1,5 +1,5 @@
 [package]
-name = "two_fella_project"
+name = "webcam_image_processor"
 version = "0.1.0"
 edition = "2021"
 
@@ -12,3 +12,8 @@ fastrand = "1.8.0"
 camera_capture = "0.5.0"
 lerp = "0.4.0"
 png = "0.17.7"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
