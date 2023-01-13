@@ -65,7 +65,7 @@ pub fn temporal_denoising(current_pixel: olc::Pixel, next_pixel: olc::Pixel) -> 
     {
         return next_pixel;
     }
-    let fraction = (((dist2 as f32).sqrt() as u32 / 12).min(9) + 1,10);
+    let fraction = (((dist2 as f32).sqrt() as u32 / 6).min(9) + 1,10);
     let p = current_pixel;
     let mut r = p.r as u32 * fraction.1 - p.r as u32 * fraction.0 + next_pixel.r as u32 * fraction.0;
     let mut g = p.g as u32 * fraction.1 - p.g as u32 * fraction.0 + next_pixel.g as u32 * fraction.0;
