@@ -313,9 +313,10 @@ impl Image
             }
         );
     }
+    
     pub fn floyd_steinberg_dithering(&mut self, target: &mut Image, bits_per_channel:usize)
     {
-       let max_values_per_channel = if bits_per_channel > 8 {255} else{1 << bits_per_channel};
+       let max_values_per_channel = if bits_per_channel > 7 {255} else{1 << bits_per_channel};
 
         for y in 0..self.height
         {
