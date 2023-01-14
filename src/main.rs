@@ -136,6 +136,7 @@ struct Window
     processors: Vec<Processor>,
     input_mode: InputMode,
     hide_ui: bool,
+    frame_counter: u64,
     frame: Image,
     target: Image,
     _temp: Image, //remove underscore when you actually need this
@@ -152,6 +153,7 @@ impl Window
             processors: vec![Processor::Normal],
             input_mode: InputMode::Normal,
             hide_ui: false,
+            frame_counter: 0,
             target: frame.clone(),
             _temp: frame.clone(),
             frame
@@ -231,7 +233,11 @@ impl olc::PGEApplication for Window
             std::thread::sleep(std::time::Duration::from_millis(80));
             return true;
         }
-        self.pre_process_input();
+        if self.frame_counter % 6 == 0
+        {
+            self.pre_process_input();
+        }
+        self.frame_counter += 1;
 
         for processor in &self.processors
         {
@@ -325,7 +331,6 @@ impl olc::PGEApplication for Window
             pge.draw_string(pge.screen_width() as i32 - 120, keysy, &"[H] hide UI".to_string(), olc::WHITE);
             pge.draw_string(pge.screen_width() as i32 - 120, keysy+10, &"[S] save image".to_string(), olc::WHITE);
         }
-
         true
     }
 }
