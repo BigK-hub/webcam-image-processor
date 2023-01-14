@@ -316,8 +316,13 @@ impl Image
     
     pub fn floyd_steinberg_dithering(&mut self, target: &mut Image, bits_per_channel:usize)
     {
-       let max_values_per_channel = if bits_per_channel > 7 {255} else{1 << bits_per_channel};
-
+        let max_values_per_channel = if bits_per_channel > 7 {255} else{1 << bits_per_channel};
+        let add = |factor:i32, error:i32| error as f32 * factor as f32 /16.0;
+       
+        //these are here just so that i dont have to recreate the upadte_pixel in the for loop
+        
+        
+        
         for y in 0..self.height
         {
             for x in 0..self.width
@@ -325,48 +330,48 @@ impl Image
                 *target.at_mut(x, y) = *self.at(x, y);
             }
         }
+        
         for y in 1..self.height-1
         {
             for x in 1..self.width-1
             {
                 let old_pixel = *target.at(x,y);
                 
-                let factor = 255/max_values_per_channel;
+                let quantisation_factor = 255/max_values_per_channel;
 
-                let new_r = ((old_pixel.r / factor) * (factor)) as u8;
-                let new_g = ((old_pixel.g / factor) * (factor)) as u8;
-                let new_b = ((old_pixel.b / factor) * (factor)) as u8;
+                let new_r = ((old_pixel.r / quantisation_factor) * (quantisation_factor)) as u8;
+                let new_g = ((old_pixel.g / quantisation_factor) * (quantisation_factor)) as u8;
+                let new_b = ((old_pixel.b / quantisation_factor) * (quantisation_factor)) as u8;
                 *target.at_mut(x, y) = olc::Pixel::rgb(new_r, new_g, new_b);
 
                 let error_r = old_pixel.r as i32 - new_r as i32;
                 let error_g = old_pixel.g as i32 - new_g as i32;
                 let error_b = old_pixel.b as i32 - new_b as i32;
+
                 
-                let add = |factor:i32, error:i32| error as f32 * factor as f32 /16.0;
-                let mut pixel = *target.at(x+1, y);
-                pixel.r += add(7,error_r) as u8;
-                pixel.g += add(7,error_g) as u8;
-                pixel.b += add(7,error_b) as u8;
-                *target.at_mut(x+1, y) = pixel;
+                let mut update_pixel = |pos:(usize,usize), factor :i32|
+                {
+                    let pixel = *target.at(pos.0 , pos.1 );
+                    
+                    let mut pixels = (pixel.r as i32, pixel.g as i32, pixel.b as i32);
+                    pixels.0 += add(factor , error_r) as i32;
+                    pixels.1 += add(factor , error_g) as i32;
+                    pixels.2 += add(factor , error_b) as i32;
+                    
+                    *target.at_mut(pos.0, pos.1) = 
+                            olc::Pixel::rgb
+                            (
+                                pixels.0.min(255).max(0) as u8,
+                                pixels.1.min(255).max(0) as u8, 
+                                pixels.2.min(255).max(0) as u8
+                            );
+                    
+                };
 
-                pixel = *target.at(x-1, y+1);
-                pixel.r += add(3,error_r) as u8;
-                pixel.g += add(3,error_g) as u8;
-                pixel.b += add(3,error_b) as u8;
-                *target.at_mut(x-1, y+1) = pixel;
-
-                pixel = *target.at(x, y+1);
-                pixel.r += add(5,error_r) as u8;
-                pixel.g += add(5,error_g) as u8;
-                pixel.b += add(5,error_b) as u8;
-                *target.at_mut(x, y+1) = pixel;
-
-                pixel = *target.at(x+1, y+1);
-                pixel.r += add(1,error_r) as u8;
-                pixel.g += add(1,error_g) as u8;
-                pixel.b += add(1,error_b) as u8;
-                *target.at_mut(x+1, y+1) = pixel;
-                
+                update_pixel((x+1,   y),7);
+                update_pixel((x-1, y+1),3);
+                update_pixel((x  , y+1),5);
+                update_pixel((x+1, y+1),1);
             }
         }
         
