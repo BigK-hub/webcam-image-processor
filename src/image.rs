@@ -212,7 +212,7 @@ impl Image
             }
         );
     }
-
+    
     pub fn sharpen(&self, target: &mut Image)
     {
         let kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0];
@@ -237,7 +237,6 @@ impl Image
                         output += brightness * kernel_value;
                     }
                 }
-
                 let value = output.min(255).max(0) as u8;
                 *target.at_mut(x, y) = olc::Pixel::rgb(value, value, value);
             }                   
@@ -415,7 +414,6 @@ impl Image
                 target.at_mut(x, y).g = g;
             }
         }
-
     }
 
     pub fn get_average_colour(&self) -> olc::Pixel
