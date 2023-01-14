@@ -160,11 +160,16 @@ impl Window
 
     fn pre_process_input(&mut self)
     {
+        let frame = match self.cam_iter.next()
+        {
+            Some(f) => f,
+            None => return
+        };
         match self.input_mode
         {
             InputMode::Normal
             => 
-                for (i, pixel) in self.cam_iter.next().unwrap().pixels().enumerate()
+                for (i, pixel) in frame.pixels().enumerate()
                 {
                     self.frame.pixels[i] = olc::Pixel::rgb(pixel.data[0], pixel.data[1], pixel.data[2]);
                 }
@@ -173,7 +178,7 @@ impl Window
             InputMode::TimeBlend
             => 
                 // fraction.0 is proportional to the influence of the next frame
-                for (i, pixel) in self.cam_iter.next().unwrap().pixels().enumerate()
+                for (i, pixel) in frame.pixels().enumerate()
                 {
                     let fraction = (2, 10);
                     let pa = self.frame.pixels[i];
@@ -202,7 +207,7 @@ impl Window
             InputMode::Denoising
             => 
                 //denoising based on pixel difference between frames
-                for (i, pixel) in self.cam_iter.next().unwrap().pixels().enumerate()
+                for (i, pixel) in frame.pixels().enumerate()
                 {
                     let p = temporal_denoising(self.frame.pixels[i], olc::Pixel::rgb(pixel.data[0], pixel.data[1], pixel.data[2]));
                     self.frame.pixels[i] = p;
@@ -221,6 +226,7 @@ impl olc::PGEApplication for Window
     }
     fn on_user_update(&mut self, pge: &mut olc::PixelGameEngine, _delta: f32) -> bool
     {
+        let start = std::time::Instant::now();
         if !pge.is_focused()
         {
             std::thread::sleep(std::time::Duration::from_millis(80));
@@ -228,6 +234,8 @@ impl olc::PGEApplication for Window
         }
         self.pre_process_input();
         
+        let past_input = std::time::Instant::now();
+
         for processor in &self.processors
         {
             //process frame
@@ -238,7 +246,7 @@ impl olc::PGEApplication for Window
                 Processor::SobelColour => self.frame.sobel_edge_detection_3x3_colour(&mut self.target),
                 Processor::Threshold => self.frame.threshold(&mut self.target, (pge.get_mouse_x()*255/ pge.screen_width() as i32) as u8),
                 Processor::ThresholdColour => self.frame.threshold_colour(&mut self.target, (pge.get_mouse_x()*255/ pge.screen_width() as i32) as u8),
-                Processor::FloydSteinbergDithering =>  self.frame.floyd_steinberg_dithering(&mut self.target, 1),
+                Processor::FloydSteinbergDithering => self.frame.floyd_steinberg_dithering(&mut self.target, 1),
                 Processor::GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
                 Processor::BoxBlur => self.frame.box_blur(&mut self.target, ((((pge.get_mouse_x() * 255 / pge.screen_width() as i32 )/2)*2 + 1) as usize).min((pge.screen_width()/2)*2 - 1).max(3)),
                 Processor::GreyScale => self.frame.greyscale(&mut self.target),
@@ -298,6 +306,7 @@ impl olc::PGEApplication for Window
                 pge.draw(x as i32, y as i32, *self.target.at(x,y));
             }
         }
+        let end = std::time::Instant::now();
         if !self.hide_ui
         {
             pge.fill_rect(self.slider.x + 2, self.slider.y, self.slider.w as u32, self.slider.h as u32, olc::Pixel::rgb(70, 150, 140));
@@ -317,7 +326,13 @@ impl olc::PGEApplication for Window
             let keysy = 50;
             pge.draw_string(pge.screen_width() as i32 - 120, keysy, &"[H] hide UI".to_string(), olc::WHITE);
             pge.draw_string(pge.screen_width() as i32 - 120, keysy+10, &"[S] save image".to_string(), olc::WHITE);
+
+            let input_duration = past_input - start;
+            let rendering_duration = end - past_input;
+            pge.draw_string(0, 0, &("input duration: ".to_string() + &input_duration.as_secs_f32().to_string()), olc::WHITE);
+            pge.draw_string(0, 10, &("rendering duration: ".to_string() + &rendering_duration.as_secs_f32().to_string()), olc::WHITE);
         }
+
         true
     }
 }
