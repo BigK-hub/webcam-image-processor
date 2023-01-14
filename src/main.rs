@@ -231,8 +231,7 @@ impl olc::PGEApplication for Window
             std::thread::sleep(std::time::Duration::from_millis(80));
             return true;
         }
-        
-        let past_input = std::time::Instant::now();
+        self.pre_process_input();
 
         for processor in &self.processors
         {
@@ -304,6 +303,7 @@ impl olc::PGEApplication for Window
                 pge.draw(x as i32, y as i32, *self.target.at(x,y));
             }
         }
+
         if !self.hide_ui
         {
             pge.fill_rect(self.slider.x + 2, self.slider.y, self.slider.w as u32, self.slider.h as u32, olc::Pixel::rgb(70, 150, 140));
