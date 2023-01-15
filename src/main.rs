@@ -138,6 +138,7 @@ struct Window
     processors: Vec<Processor>,
     input_mode: InputMode,
     hide_ui: bool,
+    frame_counter: u64,
     frame: Image,
     target: Image,
     _temp: Image, //remove underscore when you actually need this
@@ -154,6 +155,7 @@ impl Window
             processors: vec![Processor::Normal],
             input_mode: InputMode::Normal,
             hide_ui: false,
+            frame_counter: 0,
             target: frame.clone(),
             _temp: frame.clone(),
             frame
@@ -162,11 +164,16 @@ impl Window
 
     fn pre_process_input(&mut self)
     {
+        let frame = match self.cam_iter.next()
+        {
+            Some(f) => f,
+            None => return
+        };
         match self.input_mode
         {
             InputMode::Normal
             => 
-                for (i, pixel) in self.cam_iter.next().unwrap().pixels().enumerate()
+                for (i, pixel) in frame.pixels().enumerate()
                 {
                     self.frame.pixels[i] = olc::Pixel::rgb(pixel.data[0], pixel.data[1], pixel.data[2]);
                 }
@@ -175,7 +182,7 @@ impl Window
             InputMode::TimeBlend
             => 
                 // fraction.0 is proportional to the influence of the next frame
-                for (i, pixel) in self.cam_iter.next().unwrap().pixels().enumerate()
+                for (i, pixel) in frame.pixels().enumerate()
                 {
                     let fraction = (2, 10);
                     let pa = self.frame.pixels[i];
@@ -204,7 +211,7 @@ impl Window
             InputMode::Denoising
             => 
                 //denoising based on pixel difference between frames
-                for (i, pixel) in self.cam_iter.next().unwrap().pixels().enumerate()
+                for (i, pixel) in frame.pixels().enumerate()
                 {
                     let p = temporal_denoising(self.frame.pixels[i], olc::Pixel::rgb(pixel.data[0], pixel.data[1], pixel.data[2]));
                     self.frame.pixels[i] = p;
@@ -228,8 +235,12 @@ impl olc::PGEApplication for Window
             std::thread::sleep(std::time::Duration::from_millis(80));
             return true;
         }
-        self.pre_process_input();
-        
+        if self.frame_counter % 6 == 0
+        {
+            self.pre_process_input();
+        }
+        self.frame_counter += 1;
+
         for processor in &self.processors
         {
             //process frame
@@ -240,11 +251,11 @@ impl olc::PGEApplication for Window
                 Processor::SobelColour => self.frame.sobel_edge_detection_3x3_colour(&mut self.target),
                 Processor::Threshold => self.frame.threshold(&mut self.target, (pge.get_mouse_x()*255/ pge.screen_width() as i32) as u8),
                 Processor::ThresholdColour => self.frame.threshold_colour(&mut self.target, (pge.get_mouse_x()*255/ pge.screen_width() as i32) as u8),
-                Processor::FloydSteinbergDithering =>  self.frame.floyd_steinberg_dithering(&mut self.target, 1),
+                Processor::FloydSteinbergDithering => self.frame.floyd_steinberg_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),
                 Processor::GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
+                Processor::BoxBlur => self.frame.box_blur(&mut self.target, ((((pge.get_mouse_x() as usize * 255 * 49 / pge.screen_width().pow(2) )/2)*2 + 1)).min((pge.screen_width()/2)*2 - 1).max(3)),
                 Processor::Emboss => self.frame.emboss(&mut self.target),
                 Processor::Outline => self.frame.outline(&mut self.target),
-                Processor::BoxBlur => self.frame.box_blur(&mut self.target, ((((pge.get_mouse_x() * 255 / pge.screen_width() as i32 )/2)*2 + 1) as usize).min((pge.screen_width()/2)*2 - 1).max(3)),
                 Processor::GreyScale => self.frame.greyscale(&mut self.target),
                 Processor::ChromaticAberration => self.frame.chromatic_aberration(&mut self.target, (pge.get_mouse_x() as usize * 255/ pge.screen_width())/20),
                 Processor::Sharpen => self.frame.sharpen(&mut self.target),
@@ -302,6 +313,7 @@ impl olc::PGEApplication for Window
                 pge.draw(x as i32, y as i32, *self.target.at(x,y));
             }
         }
+
         if !self.hide_ui
         {
             pge.fill_rect(self.slider.x + 2, self.slider.y, self.slider.w as u32, self.slider.h as u32, olc::Pixel::rgb(70, 150, 140));
