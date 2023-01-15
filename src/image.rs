@@ -348,6 +348,7 @@ impl Image
                 let error_g = old_pixel.g as i32 - new_g as i32;
                 let error_b = old_pixel.b as i32 - new_b as i32;
 
+
                 let add = |factor:i32, error:i32| error as f32 * factor as f32 /16.0;
                 let mut update_pixel = |pos:(usize,usize), factor :i32|
                 {
@@ -390,6 +391,35 @@ impl Image
             *img.at(x,y)
         );
     }
+    pub fn emboss(&mut self, target: &mut Image)
+    {
+        self.convolve(target, 3, |s, (x,y)|
+            [
+                -2, -1, 0,
+                -1, 1, 1,
+                0, 1, 2
+            ][y*s+x],1
+        );
+        self.handle_edges(target,3,
+            |img, _s, (x,y)|
+            *img.at(x,y)
+        );
+    }
+    pub fn outline(&mut self, target: &mut Image)
+    {
+        self.convolve(target, 3, |s, (x,y)|
+            [
+                -1, -1, -1,
+                -1, 8, -1,
+                -1, -1, -1
+            ][y*s+x],1
+        );
+        self.handle_edges(target,3,
+            |img, _s, (x,y)|
+            *img.at(x,y)
+        );
+    }
+
 
     /// Offsets each channel by the provided `offset`.
     pub fn chromatic_aberration(&self, target: &mut Image, offset: usize)
