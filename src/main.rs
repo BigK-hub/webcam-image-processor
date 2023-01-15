@@ -251,7 +251,7 @@ impl olc::PGEApplication for Window
                 Processor::ThresholdColour => self.frame.threshold_colour(&mut self.target, (pge.get_mouse_x()*255/ pge.screen_width() as i32) as u8),
                 Processor::FloydSteinbergDithering => self.frame.floyd_steinberg_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),
                 Processor::GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
-                Processor::BoxBlur => self.frame.box_blur(&mut self.target, ((((pge.get_mouse_x() * 255 / pge.screen_width().pow(2) as i32 )/2)*2 + 1) as usize).min((pge.screen_width()/2)*2 - 1).max(3)),
+                Processor::BoxBlur => self.frame.box_blur(&mut self.target, ((((pge.get_mouse_x() as usize * 255 * 49 / pge.screen_width().pow(2) )/2)*2 + 1)).min((pge.screen_width()/2)*2 - 1).max(3)),
                 Processor::GreyScale => self.frame.greyscale(&mut self.target),
                 Processor::ChromaticAberration => self.frame.chromatic_aberration(&mut self.target, (pge.get_mouse_x() as usize * 255/ pge.screen_width())/20),
                 Processor::Sharpen => self.frame.sharpen(&mut self.target),

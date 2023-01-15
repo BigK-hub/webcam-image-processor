@@ -359,12 +359,12 @@ impl Image
                     pixels.2 += add(factor , error_b) as i32;
                     
                     *target.at_mut(pos.0, pos.1) = 
-                            olc::Pixel::rgb
-                            (
-                                pixels.0.min(255).max(0) as u8,
-                                pixels.1.min(255).max(0) as u8, 
-                                pixels.2.min(255).max(0) as u8
-                            );
+                        olc::Pixel::rgb
+                        (
+                            pixels.0.min(255).max(0) as u8,
+                            pixels.1.min(255).max(0) as u8, 
+                            pixels.2.min(255).max(0) as u8,
+                        );
                     
                 };
 
