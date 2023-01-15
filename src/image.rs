@@ -313,14 +313,15 @@ impl Image
             }
         );
     }
+    
     pub fn floyd_steinberg_dithering(&mut self, target: &mut Image, bits_per_channel:usize)
     {
-        let max_values_per_channel = if bits_per_channel > 8 {255} else{1 << bits_per_channel};
-        let add = |factor:i32, error:i32| error as f32 * factor as f32 /16.0;
-       
+        if bits_per_channel == 0
+        {
+            panic!("floyd_steinberg_dithering should not have bits_per_channel equal to 0.\nUse a value from 1 to 8 instead.");
+        }
+        let max_values_per_channel = if bits_per_channel > 7 {255} else{1 << bits_per_channel};
         //these are here just so that i dont have to recreate the upadte_pixel in the for loop
-        
-        
         
         for y in 0..self.height
         {
@@ -336,7 +337,7 @@ impl Image
             {
                 let old_pixel = *target.at(x,y);
                 
-                let quantisation_factor = 255/max_values_per_channel;
+                let quantisation_factor = (256/max_values_per_channel as u16) as u8;
 
                 let new_r = ((old_pixel.r / quantisation_factor) * (quantisation_factor)) as u8;
                 let new_g = ((old_pixel.g / quantisation_factor) * (quantisation_factor)) as u8;
@@ -347,7 +348,8 @@ impl Image
                 let error_g = old_pixel.g as i32 - new_g as i32;
                 let error_b = old_pixel.b as i32 - new_b as i32;
 
-                
+
+                let add = |factor:i32, error:i32| error as f32 * factor as f32 /16.0;
                 let mut update_pixel = |pos:(usize,usize), factor :i32|
                 {
                     let pixel = *target.at(pos.0 , pos.1 );
@@ -358,12 +360,12 @@ impl Image
                     pixels.2 += add(factor , error_b) as i32;
                     
                     *target.at_mut(pos.0, pos.1) = 
-                            olc::Pixel::rgb
-                            (
-                                pixels.0.min(255).max(0) as u8,
-                                pixels.1.min(255).max(0) as u8, 
-                                pixels.2.min(255).max(0) as u8
-                            );
+                        olc::Pixel::rgb
+                        (
+                            pixels.0.min(255).max(0) as u8,
+                            pixels.1.min(255).max(0) as u8, 
+                            pixels.2.min(255).max(0) as u8,
+                        );
                     
                 };
 
@@ -419,24 +421,9 @@ impl Image
     }
 
 
+    /// Offsets each channel by the provided `offset`.
     pub fn chromatic_aberration(&self, target: &mut Image, offset: usize)
     {
-        for y in 0..self.height-offset
-        {
-            for x in 0..self.width-offset
-            {
-                let r = self.at(x + offset,y + offset).r;
-                target.at_mut(x, y).r = r;
-            }
-        }
-        for y in offset..self.height
-        {
-            for x in offset..self.width
-            {
-                let b = self.at(x - offset,y - offset).b;
-                target.at_mut(x, y).b = b;
-            }
-        }
         for y in 0..self.height
         {
             for x in 0..self.width
