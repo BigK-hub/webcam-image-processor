@@ -314,6 +314,50 @@ impl Image
         );
     }
     
+    pub fn patterned_dithering(&self, target: &mut Image, bits_per_channel:usize)
+    {
+        if bits_per_channel == 0
+        {
+            panic!("In random_bias_dithering bits_per_channel may not be 0.");
+        }
+        let max_values_per_channel = (1<<bits_per_channel).min(255) as u8;
+        let quantisation_factor = 255/(max_values_per_channel-1);
+        let quantise = |mut p: olc::Pixel, factor|
+            {
+                p = p.clamping_div(factor).clamping_mul(factor);
+                p
+            };
+        for y in 0..self.height
+        {
+            for x in 0..self.width
+            {
+                let mut pixel = *self.at(x,y);
+                let mut bias = 0;
+                let quantisation_factor = quantisation_factor as u16;
+                let divisor = 20;
+
+                //checkerboard kinda pattern
+                // bias += (x%2 == y%2) as u16 * 4 * quantisation_factor / (divisor + 1);
+                // bias += ((x%4 == 0) == (y%4==0)) as u16 * 4 * quantisation_factor / (divisor + 1);
+                
+                //square squiggles pattern
+                bias += (x%2==0) as u16 * 4 * quantisation_factor / (divisor + 1);
+                bias += (x%4==0) as u16 * 2 * quantisation_factor / (divisor + 1);
+                bias += (x%8==0) as u16 * 2 * quantisation_factor / (divisor + 1);
+
+                bias += (y%2==0) as u16 * 4 * quantisation_factor / (divisor + 1);
+                bias += (y%4==0) as u16 * 2 * quantisation_factor / (divisor + 1);
+                bias += (y%8==0) as u16 * 2 * quantisation_factor / (divisor + 1);
+
+                bias += ((x%4 == 0) == (y%4==0)) as u16 * 4 * quantisation_factor / (divisor + 1);
+                
+                let bias = bias.min(255) as u8;
+                pixel = pixel.clamping_add(&olc::Pixel::rgb(bias,bias,bias));
+                *target.at_mut(x,y) = quantise(pixel, quantisation_factor as u8);
+            }
+        }
+    }
+
     pub fn random_bias_dithering(&self, target: &mut Image, bits_per_channel:usize)
     {
         if bits_per_channel == 0
@@ -333,18 +377,8 @@ impl Image
             for x in 0..self.width
             {
                 let mut pixel = *self.at(x,y);
-                let r = fastrand::i8(0..max_values_per_channel as i8/2);
-                if r > 0
-                {
-                    let r = r as u8;
-                    pixel = pixel.clamping_add(&olc::Pixel::rgb(r,r,r));
-                }
-                else
-                {
-                    let r = (r * -1) as u8;
-                    pixel = pixel.clamping_sub(&olc::Pixel::rgb(r,r,r));
-                }
-                
+                let r = fastrand::u8(0..(quantisation_factor.max(2) as u16 *4/5) as u8);
+                pixel = pixel.clamping_add(&olc::Pixel::rgb(r,r,r));
                 *target.at_mut(x,y) = quantise(pixel, quantisation_factor);
             }
         }

@@ -101,12 +101,12 @@ impl PixelArithmetic for olc::Pixel
 
     fn clamping_sub(&self, other: &Self) -> Self
     {
-        let mut r = self.r as u16;
-        let mut g = self.g as u16;
-        let mut b = self.b as u16;
-        r -= other.r as u16;
-        g -= other.g as u16;
-        b -= other.b as u16;
+        let mut r = self.r as i16;
+        let mut g = self.g as i16;
+        let mut b = self.b as i16;
+        r -= other.r as i16;
+        g -= other.g as i16;
+        b -= other.b as i16;
         r = r.max(0);
         g = g.max(0);
         b = b.max(0);
