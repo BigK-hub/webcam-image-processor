@@ -314,7 +314,43 @@ impl Image
         );
     }
     
-    pub fn floyd_steinberg_dithering(&mut self, target: &mut Image, bits_per_channel:usize)
+    pub fn random_bias_dithering(&self, target: &mut Image, bits_per_channel:usize)
+    {
+        if bits_per_channel == 0
+        {
+            panic!("In random_bias_dithering bits_per_channel may not be 0.");
+        }
+        let max_values_per_channel = (1<<bits_per_channel).min(255) as u8;
+        let quantisation_factor = 255/(max_values_per_channel-1);
+        let quantise = |p: olc::Pixel, factor|
+            olc::Pixel::rgb(
+                (p.r / factor) * factor,
+                (p.g / factor) * factor,
+                (p.b / factor) * factor,
+        );
+        for y in 0..self.height
+        {
+            for x in 0..self.width
+            {
+                let mut pixel = *self.at(x,y);
+                let r = fastrand::i8(0..max_values_per_channel as i8/2);
+                if r > 0
+                {
+                    let r = r as u8;
+                    pixel = pixel.clamping_add(&olc::Pixel::rgb(r,r,r));
+                }
+                else
+                {
+                    let r = (r * -1) as u8;
+                    pixel = pixel.clamping_sub(&olc::Pixel::rgb(r,r,r));
+                }
+                
+                *target.at_mut(x,y) = quantise(pixel, quantisation_factor);
+            }
+        }
+    }
+
+    pub fn floyd_steinberg_dithering(&self, target: &mut Image, bits_per_channel:usize)
     {
         if bits_per_channel == 0
         {
@@ -337,7 +373,7 @@ impl Image
             {
                 let old_pixel = *target.at(x,y);
                 
-                let quantisation_factor = (256/max_values_per_channel as u16) as u8;
+                let quantisation_factor = (255/(max_values_per_channel-1) as u16) as u8;
 
                 let new_r = ((old_pixel.r / quantisation_factor) * (quantisation_factor)) as u8;
                 let new_g = ((old_pixel.g / quantisation_factor) * (quantisation_factor)) as u8;

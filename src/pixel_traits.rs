@@ -1,3 +1,4 @@
+use olc::Pixel;
 use olc_pge as olc;
 use lerp::Lerp;
 
@@ -54,6 +55,77 @@ impl DistanceSquared for olc::Pixel
         let b = self.b as i32 - other.b as i32;
 
         return (r*r+g*g+b*b) as u32;
+    }
+}
+
+pub trait PixelArithmetic
+{
+    fn clamping_add(&self, other: &Self) -> Self;
+
+    fn clamping_mul(&self, factor: u8) -> Self;
+
+    fn clamping_sub(&self, other: &Self) -> Self;
+
+    fn clamping_div(&self, divisor: u8) -> Self;
+}
+
+impl PixelArithmetic for olc::Pixel
+{
+    fn clamping_add(&self, other: &Self) -> Self
+    {
+        let mut r = self.r as u16;
+        let mut g = self.g as u16;
+        let mut b = self.b as u16;
+        r += other.r as u16;
+        g += other.g as u16;
+        b += other.b as u16;
+        r = r.min(255);
+        g = g.min(255);
+        b = b.min(255);
+        return olc::Pixel::rgb(r as u8, g as u8, b as u8);
+    }
+
+    fn clamping_mul(&self, factor: u8) -> Self
+    {
+        let mut r = self.r as u16;
+        let mut g = self.g as u16;
+        let mut b = self.b as u16;
+        r *= factor as u16;
+        g *= factor as u16;
+        b *= factor as u16;
+        r = r.min(255);
+        g = g.min(255);
+        b = b.min(255);
+        return olc::Pixel::rgb(r as u8, g as u8, b as u8);
+    }
+
+    fn clamping_sub(&self, other: &Self) -> Self
+    {
+        let mut r = self.r as u16;
+        let mut g = self.g as u16;
+        let mut b = self.b as u16;
+        r -= other.r as u16;
+        g -= other.g as u16;
+        b -= other.b as u16;
+        r = r.max(0);
+        g = g.max(0);
+        b = b.max(0);
+        return olc::Pixel::rgb(r as u8, g as u8, b as u8);
+    }
+
+    fn clamping_div(&self, divisor: u8) -> Self
+    {
+        if divisor == 0
+        {
+            panic!("Function clamping_div may not have a divisor equal to 0.");
+        }
+        let mut r = self.r as u16;
+        let mut g = self.g as u16;
+        let mut b = self.b as u16;
+        r /= divisor as u16;
+        g /= divisor as u16;
+        b /= divisor as u16;
+        return olc::Pixel::rgb(r as u8, g as u8, b as u8);
     }
 }
 
