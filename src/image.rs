@@ -398,7 +398,7 @@ impl Image
                 //this means that the error is always positive, and we can use u8s to store it
                 let error = old_pixel.sub(new);
                 let weighted_error = move |error: olc::Pixel, factor:u8| error.clamping_fraction_mul((factor, 16));
-                let mut update_pixel = |pos:(usize,usize), factor :u8|
+                let mut diffuse_error = |pos:(usize,usize), factor :u8|
                 {
                     target[pos] = target[pos].clamping_add
                     (
@@ -406,10 +406,10 @@ impl Image
                     );
                 };
 
-                update_pixel((x+1,   y),7);
-                update_pixel((x-1, y+1),3);
-                update_pixel((x  , y+1),5);
-                update_pixel((x+1, y+1),1);
+                diffuse_error((x+1,   y),7);
+                diffuse_error((x-1, y+1),3);
+                diffuse_error((x  , y+1),5);
+                diffuse_error((x+1, y+1),1);
                 target[(x,y)] = new;
             }
         }
