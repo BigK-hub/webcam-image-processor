@@ -67,7 +67,7 @@ impl Image
     ///     self.convolve(target, 3, |s,(x,y)| 1, 9); // here kernel_generator always returns 1
     ///     // self.handle_edges(target, 3,
     ///     // |img, _s, (x,y)|
-    ///     // *img.at(x,y)
+    ///     // img[(x,y)]
     ///     // );
     /// }
     /// ```
@@ -141,7 +141,7 @@ impl Image
     ///     // self.convolve(target, 3, |s,(x,y)| 1, 9);
     ///     self.handle_edges(target, 3,
     ///     |img, _s, (x,y)|
-    ///     *img.at(x,y) // here the `edge_handler` just returns the original colour of the image.
+    ///     img[(x,y)] // here the `edge_handler` just returns the original colour of the image.
     ///     );
     /// }
     /// ```
