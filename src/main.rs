@@ -7,7 +7,7 @@ use camera_capture;
 use pixel_traits::*;
 
 const INPUT_MODE_NAMES: [&str; 3] = ["Normal", "TimeBlend", "Denoising"];
-const PROCESSOR_NAMES: [&str; 14] = ["Normal", "Sobel", "SobelColour", "Threshold", "ThresholdColour", "RandomBiasDithering","FloydSteinbergDithering", "GaussianBlur", "BoxBlur", "GreyScale", "ChromaticAberration", "Sharpen", "SharpenColour", "CrossBlur"];
+const PROCESSOR_NAMES: [&str; 15] = ["Normal", "Sobel", "SobelColour", "Threshold", "ThresholdColour", "RandomBiasDithering", "PatternedDithering", "FloydSteinbergDithering", "GaussianBlur", "BoxBlur", "GreyScale", "ChromaticAberration", "Sharpen", "SharpenColour", "CrossBlur"];
 
 fn main()
 {
@@ -252,8 +252,8 @@ impl olc::PGEApplication for Window
                 SobelColour => self.frame.sobel_edge_detection_3x3_colour(&mut self.target),
                 Threshold => self.frame.threshold(&mut self.target, (pge.get_mouse_x()*255/ pge.screen_width() as i32) as u8),
                 ThresholdColour => self.frame.threshold_colour(&mut self.target, (pge.get_mouse_x()*255/ pge.screen_width() as i32) as u8),
-                PatternedDithering => self.frame.patterned_dithering(&mut self.target, pge.get_mouse_x() as usize *255/ pge.screen_width()),
                 RandomBiasDithering => self.frame.random_bias_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),//random_bias_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),
+                PatternedDithering => self.frame.patterned_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),
                 FloydSteinbergDithering => self.frame.floyd_steinberg_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),
                 GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
                 BoxBlur => self.frame.box_blur(&mut self.target, ((((pge.get_mouse_x() as usize * 255 * 49 / pge.screen_width().pow(2) )/2)*2 + 1)).min((pge.screen_width()/2)*2 - 1).max(3)),
@@ -311,7 +311,7 @@ impl olc::PGEApplication for Window
         {
             for x in 0..pge.screen_width()
             {
-                pge.draw(x as i32, y as i32, *self.target.at(x,y));
+                pge.draw(x as i32, y as i32, self.target[(x,y)]);
             }
         }
 
