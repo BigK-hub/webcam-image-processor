@@ -1,4 +1,3 @@
-use olc::Pixel;
 use olc_pge as olc;
 use lerp::Lerp;
 
@@ -67,6 +66,8 @@ pub trait PixelArithmetic
     fn clamping_sub(&self, other: &Self) -> Self;
 
     fn clamping_div(&self, divisor: u8) -> Self;
+
+    fn normalised_mul(&self, other:& Self) -> Self;
 }
 
 impl PixelArithmetic for olc::Pixel
@@ -125,6 +126,20 @@ impl PixelArithmetic for olc::Pixel
         r /= divisor as u16;
         g /= divisor as u16;
         b /= divisor as u16;
+        return olc::Pixel::rgb(r as u8, g as u8, b as u8);
+    }
+
+    fn normalised_mul(&self, other:& Self) -> Self
+    {
+        let mut r = self.r as u16;
+        let mut g = self.g as u16;
+        let mut b = self.b as u16;
+        r *= other.r as u16;
+        g *= other.g as u16;
+        b *= other.b as u16;
+        r /= 255;
+        g /= 255;
+        b /= 255;
         return olc::Pixel::rgb(r as u8, g as u8, b as u8);
     }
 }

@@ -230,6 +230,7 @@ impl olc::PGEApplication for Window
     }
     fn on_user_update(&mut self, pge: &mut olc::PixelGameEngine, _delta: f32) -> bool
     {
+        let start = std::time::Instant::now();
         if !pge.is_focused()
         {
             std::thread::sleep(std::time::Duration::from_millis(80));
@@ -240,6 +241,8 @@ impl olc::PGEApplication for Window
             self.pre_process_input();
         }
         self.frame_counter += 1;
+
+        let past_input = std::time::Instant::now();
 
         for processor in &self.processors
         {
@@ -314,7 +317,7 @@ impl olc::PGEApplication for Window
                 pge.draw(x as i32, y as i32, self.target[(x,y)]);
             }
         }
-
+        let end = std::time::Instant::now();
         if !self.hide_ui
         {
             pge.fill_rect(self.slider.x + 2, self.slider.y, self.slider.w as u32, self.slider.h as u32, olc::Pixel::rgb(70, 150, 140));
@@ -335,7 +338,13 @@ impl olc::PGEApplication for Window
             let keysy = 50;
             pge.draw_string(pge.screen_width() as i32 - 120, keysy, &"[H] hide UI".to_string(), olc::WHITE);
             pge.draw_string(pge.screen_width() as i32 - 120, keysy+10, &"[S] save image".to_string(), olc::WHITE);
+
+            let input_duration = past_input - start;
+            let rendering_duration = end - past_input;
+            pge.draw_string(0, 0, &("input duration: ".to_string() + &input_duration.as_secs_f32().to_string()), olc::WHITE);
+            pge.draw_string(0, 10, &("rendering duration: ".to_string() + &rendering_duration.as_secs_f32().to_string()), olc::WHITE);
         }
+
         true
     }
 }

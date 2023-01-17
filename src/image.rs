@@ -14,7 +14,7 @@ impl std::ops::Index<(usize, usize)> for Image
     type Output = olc::Pixel;
     fn index(&self, index: (usize, usize)) -> &Self::Output
     {
-        assert!(index.0 >= self.width || index.1 >= self.height);
+        debug_assert!(index.0 >= self.width || index.1 >= self.height);
         &self.pixels[index.1*self.width+index.0]
     }
 }
@@ -23,7 +23,7 @@ impl std::ops::IndexMut<(usize, usize)> for Image
 {
     fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output
     {
-        assert!(index.0 >= self.width || index.1 >= self.height);
+        debug_assert!(index.0 >= self.width || index.1 >= self.height);
         &mut self.pixels[index.1*self.width+index.0]
     }
 }
