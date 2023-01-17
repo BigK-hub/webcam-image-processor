@@ -70,6 +70,7 @@ enum Processor
     RandomBiasDithering,
     PatternedDithering,
     FloydSteinbergDithering,
+    FloydSteinbergDitheringCustomPalette,
     GaussianBlur,
     BoxBlur,
     Emboss,
@@ -152,7 +153,7 @@ impl Window
         {
             cam_iter,
             slider,
-            processors: vec![Processor::Normal],
+            processors: vec![Processor::FloydSteinbergDitheringCustomPalette],
             input_mode: InputMode::Normal,
             hide_ui: false,
             frame_counter: 0,
@@ -249,6 +250,7 @@ impl olc::PGEApplication for Window
         for processor in &self.processors
         {
             use Processor::*;
+            let rgb = olc::Pixel::rgb;
             //process frame
             match processor
             {
@@ -260,6 +262,7 @@ impl olc::PGEApplication for Window
                 RandomBiasDithering => self.frame.random_bias_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),//random_bias_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),
                 PatternedDithering => self.frame.patterned_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),
                 FloydSteinbergDithering => self.frame.floyd_steinberg_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),
+                FloydSteinbergDitheringCustomPalette => self.frame.floyd_steinberg_with_custom_colour_palette(&mut self.target, &[rgb(0,60,60),rgb(140,120,50),rgb(255,225,0),rgb(60,60,80),rgb(60,60,140),rgb(80,0,0),rgb(120,60,50),rgb(50,150,120),rgb(120,100,200)]),
                 GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
                 BoxBlur => self.frame.box_blur(&mut self.target, ((((pge.get_mouse_x() as usize * 255 * 49 / pge.screen_width().pow(2) )/2)*2 + 1)).min((pge.screen_width()/2)*2 - 1).max(3)),
                 Emboss => self.frame.emboss(&mut self.target),
