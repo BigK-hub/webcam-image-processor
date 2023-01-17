@@ -6,9 +6,6 @@ use olc_pge as olc;
 use camera_capture;
 use pixel_traits::*;
 
-const INPUT_MODE_NAMES: [&str; 3] = ["Normal", "TimeBlend", "Denoising"];
-const PROCESSOR_NAMES: [&str; 17] = ["Normal", "Sobel", "SobelColour", "Threshold", "ThresholdColour", "RandomBiasDithering", "PatternedDithering", "FloydSteinbergDithering", "GaussianBlur", "BoxBlur", "Emboss","Outline", "GreyScale", "ChromaticAberration", "Sharpen", "SharpenColour", "CrossBlur"];
-
 fn main()
 {
     println!("Make sure to put escapi.dll in the same folder as this executable.");
@@ -62,7 +59,7 @@ fn get_pixel_size_input() -> usize
 }
 
 #[allow(dead_code)]
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 enum Processor
 {
     Normal,
@@ -73,6 +70,7 @@ enum Processor
     RandomBiasDithering,
     PatternedDithering,
     FloydSteinbergDithering,
+    FloydSteinbergDitheringCustomPalette,
     GaussianBlur,
     BoxBlur,
     Emboss,
@@ -85,7 +83,7 @@ enum Processor
 }
 
 #[allow(dead_code)]
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 enum InputMode
 {
     Normal, 
@@ -155,7 +153,7 @@ impl Window
         {
             cam_iter,
             slider,
-            processors: vec![Processor::Normal],
+            processors: vec![Processor::FloydSteinbergDitheringCustomPalette],
             input_mode: InputMode::Normal,
             hide_ui: false,
             frame_counter: 0,
@@ -176,10 +174,11 @@ impl Window
         match self.input_mode
         {
             InputMode::Normal
-            => 
-                for (i, pixel) in frame.pixels().enumerate()
-                {
-                    self.frame.pixels[i] = olc::Pixel::rgb(pixel.data[0], pixel.data[1], pixel.data[2]);
+            =>  {
+                    for (i, pixel) in frame.pixels().enumerate()
+                    {
+                        self.frame.pixels[i] = olc::Pixel::rgb(pixel.data[0], pixel.data[1], pixel.data[2]);
+                    }
                 }
             ,
 
@@ -251,6 +250,7 @@ impl olc::PGEApplication for Window
         for processor in &self.processors
         {
             use Processor::*;
+            let rgb = olc::Pixel::rgb;
             //process frame
             match processor
             {
@@ -262,6 +262,7 @@ impl olc::PGEApplication for Window
                 RandomBiasDithering => self.frame.random_bias_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),//random_bias_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),
                 PatternedDithering => self.frame.patterned_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),
                 FloydSteinbergDithering => self.frame.floyd_steinberg_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),
+                FloydSteinbergDitheringCustomPalette => self.frame.floyd_steinberg_with_custom_colour_palette(&mut self.target, &[rgb(0,60,60),rgb(140,120,50),rgb(255,225,0),rgb(60,60,80),rgb(60,60,140),rgb(80,0,0),rgb(120,60,50),rgb(50,150,120),rgb(120,100,200)]),
                 GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
                 BoxBlur => self.frame.box_blur(&mut self.target, ((((pge.get_mouse_x() as usize * 255 * 49 / pge.screen_width().pow(2) )/2)*2 + 1)).min((pge.screen_width()/2)*2 - 1).max(3)),
                 Emboss => self.frame.emboss(&mut self.target),
@@ -330,9 +331,9 @@ impl olc::PGEApplication for Window
             pge.fill_rect(self.slider.get_slider_x(), self.slider.y, 2, self.slider.h as u32, olc::Pixel::rgb(200, 235, 225));
             pge.draw_string(5, pge.screen_height() as i32 - 25, &"Processor:".to_string(), olc::WHITE);
             
-            pge.draw_string(5, pge.screen_height() as i32 - 10, &PROCESSOR_NAMES[self.processors[0] as usize].to_string(), olc::WHITE);
+            pge.draw_string(5, pge.screen_height() as i32 - 10, &format!("{:?}", self.processors[0]), olc::WHITE);
             pge.draw_string(pge.screen_width() as i32 - 80, pge.screen_height() as i32 - 25, &"InputMode:".to_string(), olc::WHITE);
-            pge.draw_string(pge.screen_width() as i32 - 80, pge.screen_height() as i32 - 10, &INPUT_MODE_NAMES[self.input_mode as usize].to_string(), olc::WHITE);
+            pge.draw_string(pge.screen_width() as i32 - 80, pge.screen_height() as i32 - 10, &format!("{:?}", self.input_mode), olc::WHITE);
             
             pge.draw_string(pge.screen_width() as i32 - 145, 3, &"[<] Processors [>]".to_string(), olc::WHITE);
             
