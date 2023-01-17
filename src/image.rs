@@ -322,7 +322,7 @@ impl Image
         }
         let max_values_per_channel = if bits_per_channel > 7 {255} else{1 << bits_per_channel-1};
         //these are here just so that i dont have to recreate the upadte_pixel in the for loop
-        let add = |factor:i32, error:i32| error as f32 * factor as f32 /16.0;
+        let weighted_error = |factor:i32, error:u32| error as f32 * factor as f32 /16.0;
        
         //these are here just so that i dont have to recreate the upadte_pixel in the for loop
         
@@ -347,20 +347,18 @@ impl Image
                 let new_b = ((old_pixel.b / quantisation_factor) * (quantisation_factor)) as u8;
                 *target.at_mut(x, y) = olc::Pixel::rgb(new_r, new_g, new_b);
 
-                let error_r = old_pixel.r as i32 - new_r as i32;
-                let error_g = old_pixel.g as i32 - new_g as i32;
-                let error_b = old_pixel.b as i32 - new_b as i32;
+                let error_r = old_pixel.r as u32 - new_r as u32;
+                let error_g = old_pixel.g as u32 - new_g as u32;
+                let error_b = old_pixel.b as u32 - new_b as u32;
 
-
-                let add = |factor:i32, error:i32| error as f32 * factor as f32 /16.0;
                 let mut update_pixel = |pos:(usize,usize), factor :i32|
                 {
                     let pixel = *target.at(pos.0 , pos.1 );
                     
                     let mut pixels = (pixel.r as i32, pixel.g as i32, pixel.b as i32);
-                    pixels.0 += add(factor , error_r) as i32;
-                    pixels.1 += add(factor , error_g) as i32;
-                    pixels.2 += add(factor , error_b) as i32;
+                    pixels.0 += weighted_error(factor , error_r) as i32;
+                    pixels.1 += weighted_error(factor , error_g) as i32;
+                    pixels.2 += weighted_error(factor , error_b) as i32;
                     
                     *target.at_mut(pos.0, pos.1) = 
                         olc::Pixel::rgb
