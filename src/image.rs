@@ -340,7 +340,7 @@ impl Image
             {
                 let old_pixel = *target.at(x,y);
                 
-                let quantisation_factor = (256/max_values_per_channel as u16) as u8;
+                let quantisation_factor = (255/max_values_per_channel as u16) as u8;
 
                 let new_r = ((old_pixel.r / quantisation_factor) * (quantisation_factor)) as u8;
                 let new_g = ((old_pixel.g / quantisation_factor) * (quantisation_factor)) as u8;
