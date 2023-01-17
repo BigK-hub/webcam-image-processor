@@ -190,7 +190,7 @@ impl Image
     ///     );
     /// }
     /// ```
-    pub fn for_each<F>(&self, target: &mut Image, transformer: F) where F: Fn(olc::Pixel) -> olc::Pixel
+    pub fn map<F>(&self, target: &mut Image, transformer: F) where F: Fn(olc::Pixel) -> olc::Pixel
     {
         for (i, &pixel) in self.pixels.iter().enumerate()
         {
@@ -200,7 +200,7 @@ impl Image
     
     pub fn greyscale(&self, target: &mut Image)
     {
-        self.for_each(target,
+        self.map(target,
             |p|
             {
                 let brt = p.brightness();
@@ -286,7 +286,7 @@ impl Image
 
     pub fn threshold(&self, target: &mut Image, threshold: u8)
     {
-        self.for_each(target,
+        self.map(target,
             |p|
             {
                 let brt = p.brightness(); 
@@ -297,7 +297,7 @@ impl Image
 
     pub fn threshold_colour(&self, target: &mut Image, threshold: u8)
     {
-        self.for_each(target,
+        self.map(target,
             |p|
             {
                 olc::Pixel::rgb
