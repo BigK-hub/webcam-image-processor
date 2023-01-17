@@ -429,6 +429,35 @@ impl Image
             img[(x,y)]
         );
     }
+    pub fn emboss(&mut self, target: &mut Image)
+    {
+        self.convolve(target, 3, |s, (x,y)|
+            [
+                -2, -1, 0,
+                -1, 1, 1,
+                0, 1, 2
+            ][y*s+x],1
+        );
+        self.handle_edges(target,3,
+            |img, _s, (x,y)|
+            img[(x,y)]
+        );
+    }
+    pub fn outline(&mut self, target: &mut Image)
+    {
+        self.convolve(target, 3, |s, (x,y)|
+            [
+                -1, -1, -1,
+                -1, 8, -1,
+                -1, -1, -1
+            ][y*s+x],1
+        );
+        self.handle_edges(target,3,
+            |img, _s, (x,y)|
+            img[(x,y)]
+        );
+    }
+
 
     /// Offsets each channel by the provided `offset`.
     pub fn chromatic_aberration(&self, target: &mut Image, offset: usize)

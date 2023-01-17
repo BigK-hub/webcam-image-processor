@@ -7,7 +7,7 @@ use camera_capture;
 use pixel_traits::*;
 
 const INPUT_MODE_NAMES: [&str; 3] = ["Normal", "TimeBlend", "Denoising"];
-const PROCESSOR_NAMES: [&str; 15] = ["Normal", "Sobel", "SobelColour", "Threshold", "ThresholdColour", "RandomBiasDithering", "PatternedDithering", "FloydSteinbergDithering", "GaussianBlur", "BoxBlur", "GreyScale", "ChromaticAberration", "Sharpen", "SharpenColour", "CrossBlur"];
+const PROCESSOR_NAMES: [&str; 17] = ["Normal", "Sobel", "SobelColour", "Threshold", "ThresholdColour", "RandomBiasDithering", "PatternedDithering", "FloydSteinbergDithering", "GaussianBlur", "BoxBlur", "Emboss","Outline", "GreyScale", "ChromaticAberration", "Sharpen", "SharpenColour", "CrossBlur"];
 
 fn main()
 {
@@ -75,6 +75,8 @@ enum Processor
     FloydSteinbergDithering,
     GaussianBlur,
     BoxBlur,
+    Emboss,
+    Outline,
     GreyScale,
     ChromaticAberration,
     Sharpen,
@@ -262,6 +264,8 @@ impl olc::PGEApplication for Window
                 FloydSteinbergDithering => self.frame.floyd_steinberg_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),
                 GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
                 BoxBlur => self.frame.box_blur(&mut self.target, ((((pge.get_mouse_x() as usize * 255 * 49 / pge.screen_width().pow(2) )/2)*2 + 1)).min((pge.screen_width()/2)*2 - 1).max(3)),
+                Emboss => self.frame.emboss(&mut self.target),
+                Outline => self.frame.outline(&mut self.target),
                 GreyScale => self.frame.greyscale(&mut self.target),
                 ChromaticAberration => self.frame.chromatic_aberration(&mut self.target, (pge.get_mouse_x() as usize * 255/ pge.screen_width())/20),
                 Sharpen => self.frame.sharpen(&mut self.target),
