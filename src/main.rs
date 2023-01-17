@@ -173,10 +173,11 @@ impl Window
         match self.input_mode
         {
             InputMode::Normal
-            => 
-                for (i, pixel) in frame.pixels().enumerate()
-                {
-                    self.frame.pixels[i] = olc::Pixel::rgb(pixel.data[0], pixel.data[1], pixel.data[2]);
+            =>  {
+                    for (i, pixel) in frame.pixels().enumerate()
+                    {
+                        self.frame.pixels[i] = olc::Pixel::rgb(pixel.data[0], pixel.data[1], pixel.data[2]);
+                    }
                 }
             ,
 

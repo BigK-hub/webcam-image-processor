@@ -382,6 +382,11 @@ impl Image
     {
         assert_ne!(bits_per_channel, 0);
         let max_values_per_channel = if bits_per_channel > 7 {255} else{1 << bits_per_channel};
+        self.floyd_steinberg_dithering_impl(target, max_values_per_channel);
+    }
+
+    pub fn floyd_steinberg_dithering_impl(&self, target: &mut Image, max_values_per_channel: usize)
+    {
         let quantisation_factor = (255/(max_values_per_channel-1) as u16) as u8;
 
         target.pixels.copy_from_slice(&self.pixels);
