@@ -6,9 +6,6 @@ use olc_pge as olc;
 use camera_capture;
 use pixel_traits::*;
 
-const INPUT_MODE_NAMES: [&str; 3] = ["Normal", "TimeBlend", "Denoising"];
-const PROCESSOR_NAMES: [&str; 17] = ["Normal", "Sobel", "SobelColour", "Threshold", "ThresholdColour", "RandomBiasDithering", "PatternedDithering", "FloydSteinbergDithering", "GaussianBlur", "BoxBlur", "Emboss","Outline", "GreyScale", "ChromaticAberration", "Sharpen", "SharpenColour", "CrossBlur"];
-
 fn main()
 {
     println!("Make sure to put escapi.dll in the same folder as this executable.");
@@ -62,7 +59,7 @@ fn get_pixel_size_input() -> usize
 }
 
 #[allow(dead_code)]
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 enum Processor
 {
     Normal,
@@ -85,7 +82,7 @@ enum Processor
 }
 
 #[allow(dead_code)]
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 enum InputMode
 {
     Normal, 
@@ -330,9 +327,9 @@ impl olc::PGEApplication for Window
             pge.fill_rect(self.slider.get_slider_x(), self.slider.y, 2, self.slider.h as u32, olc::Pixel::rgb(200, 235, 225));
             pge.draw_string(5, pge.screen_height() as i32 - 25, &"Processor:".to_string(), olc::WHITE);
             
-            pge.draw_string(5, pge.screen_height() as i32 - 10, &PROCESSOR_NAMES[self.processors[0] as usize].to_string(), olc::WHITE);
+            pge.draw_string(5, pge.screen_height() as i32 - 10, &format!("{:?}", self.processors[0]), olc::WHITE);
             pge.draw_string(pge.screen_width() as i32 - 80, pge.screen_height() as i32 - 25, &"InputMode:".to_string(), olc::WHITE);
-            pge.draw_string(pge.screen_width() as i32 - 80, pge.screen_height() as i32 - 10, &INPUT_MODE_NAMES[self.input_mode as usize].to_string(), olc::WHITE);
+            pge.draw_string(pge.screen_width() as i32 - 80, pge.screen_height() as i32 - 10, &format!("{:?}", self.input_mode), olc::WHITE);
             
             pge.draw_string(pge.screen_width() as i32 - 145, 3, &"[<] Processors [>]".to_string(), olc::WHITE);
             
