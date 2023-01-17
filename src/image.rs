@@ -14,7 +14,7 @@ impl std::ops::Index<(usize, usize)> for Image
     type Output = olc::Pixel;
     fn index(&self, index: (usize, usize)) -> &Self::Output
     {
-        debug_assert!(index.0 >= self.width || index.1 >= self.height);
+        debug_assert!(index.0 < self.width && index.1 < self.height, "Can't index Image with invalid coordinates.");
         &self.pixels[index.1*self.width+index.0]
     }
 }
@@ -23,7 +23,7 @@ impl std::ops::IndexMut<(usize, usize)> for Image
 {
     fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output
     {
-        debug_assert!(index.0 >= self.width || index.1 >= self.height);
+        debug_assert!(index.0 < self.width && index.1 < self.height, "Can't index Image with invalid coordinates.");
         &mut self.pixels[index.1*self.width+index.0]
     }
 }
@@ -192,6 +192,7 @@ impl Image
     /// ```
     pub fn map<F>(&self, target: &mut Image, transformer: F) where F: Fn(olc::Pixel) -> olc::Pixel
     {
+        //let (prefix, simd, suffix) = target.pixels.iter().map(|p| [p.r, p.g, p.b, p.a].iter()).as_simd_mut();
         for (i, &pixel) in self.pixels.iter().enumerate()
         {
             target.pixels[i] = transformer(pixel);
@@ -317,7 +318,7 @@ impl Image
         let quantisation_factor = 255/(max_values_per_channel-1);
         let quantise = |mut p: olc::Pixel, factor|
             {
-                p = p.clamping_div(factor).clamping_mul(factor);
+                p = p.div(factor).clamping_mul(factor);
                 p
             };
         for y in 0..self.height
@@ -348,7 +349,7 @@ impl Image
 
                 bias += ((x%4 == 0) == (y%4==0)) as u16 * 4 * quantisation_factor / (divisor + 1);
                 let bias = bias.min(255) as u8;
-                pixel = pixel.clamping_add(&olc::Pixel::rgb(bias,bias,bias));
+                pixel = pixel.clamping_add(olc::Pixel::rgb(bias,bias,bias));
                 target[(x,y)] = quantise(pixel, quantisation_factor as u8);
             }
         }
@@ -371,7 +372,7 @@ impl Image
             {
                 let mut pixel = self[(x,y)];
                 let r = fastrand::u8(0..(quantisation_factor.max(2) as u16 *4/5) as u8);
-                pixel = pixel.clamping_add(&olc::Pixel::rgb(r,r,r));
+                pixel = pixel.clamping_add(olc::Pixel::rgb(r,r,r));
                 target[(x,y)] = quantise(pixel, quantisation_factor);
             }
         }
@@ -381,61 +382,39 @@ impl Image
     {
         assert_ne!(bits_per_channel, 0);
         let max_values_per_channel = if bits_per_channel > 7 {255} else{1 << bits_per_channel};
-        //these are here just so that i dont have to recreate the upadte_pixel in the for loop
-        
-        for y in 0..self.height
-        {
-            for x in 0..self.width
-            {
-                target[(x, y)] = self[(x, y)];
-            }
-        }
-        
+        let quantisation_factor = (255/(max_values_per_channel-1) as u16) as u8;
+
+        target.pixels.copy_from_slice(&self.pixels);
+
+
         for y in 1..self.height-1
         {
             for x in 1..self.width-1
             {
                 let old_pixel = target[(x,y)];
-                
-                let quantisation_factor = (255/(max_values_per_channel-1) as u16) as u8;
+                let new = old_pixel.div(quantisation_factor).clamping_mul(quantisation_factor);
 
-                let new_r = ((old_pixel.r / quantisation_factor) * (quantisation_factor)) as u8;
-                let new_g = ((old_pixel.g / quantisation_factor) * (quantisation_factor)) as u8;
-                let new_b = ((old_pixel.b / quantisation_factor) * (quantisation_factor)) as u8;
-                target[(x, y)] = olc::Pixel::rgb(new_r, new_g, new_b);
-
-                let error_r = old_pixel.r as i32 - new_r as i32;
-                let error_g = old_pixel.g as i32 - new_g as i32;
-                let error_b = old_pixel.b as i32 - new_b as i32;
-
-                let add = |factor:i32, error:i32| error as f32 * factor as f32 /16.0;
-                let mut update_pixel = |pos:(usize,usize), factor :i32|
+                //we know that quantising a pixel always makes it either the same or darker than before
+                //this means that the error is always positive, and we can use u8s to store it
+                let error = old_pixel.sub(new);
+                let weighted_error = move |error: olc::Pixel, factor:u8| error.clamping_fraction_mul((factor, 16));
+                let mut update_pixel = |pos:(usize,usize), factor :u8|
                 {
-                    let pixel = target[pos];
-                    
-                    let mut pixels = (pixel.r as i32, pixel.g as i32, pixel.b as i32);
-                    pixels.0 += add(factor , error_r) as i32;
-                    pixels.1 += add(factor , error_g) as i32;
-                    pixels.2 += add(factor , error_b) as i32;
-                    
-                    target[pos] = 
-                        olc::Pixel::rgb
-                        (
-                            pixels.0.min(255).max(0) as u8,
-                            pixels.1.min(255).max(0) as u8, 
-                            pixels.2.min(255).max(0) as u8,
-                        );
-                    
+                    target[pos] = target[pos].clamping_add
+                    (
+                        weighted_error(error, factor)
+                    );
                 };
 
                 update_pixel((x+1,   y),7);
                 update_pixel((x-1, y+1),3);
                 update_pixel((x  , y+1),5);
                 update_pixel((x+1, y+1),1);
+                target[(x,y)] = new;
             }
         }
-        
     }
+
     pub fn gaussian_blur_3x3(&mut self, target: &mut Image)
     {
         self.convolve(target, 3, |s, (x,y)|

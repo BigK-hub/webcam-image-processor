@@ -59,20 +59,24 @@ impl DistanceSquared for olc::Pixel
 
 pub trait PixelArithmetic
 {
-    fn clamping_add(&self, other: &Self) -> Self;
+    fn clamping_add(&self, other: Self) -> Self;
 
     fn clamping_mul(&self, factor: u8) -> Self;
 
-    fn clamping_sub(&self, other: &Self) -> Self;
+    fn clamping_sub(&self, other: Self) -> Self;
 
-    fn clamping_div(&self, divisor: u8) -> Self;
+    fn sub(&self, other: Self) -> Self;
 
-    fn normalised_mul(&self, other:& Self) -> Self;
+    fn div(&self, divisor: u8) -> Self;
+
+    fn normalised_mul(&self, other: Self) -> Self;
+
+    fn clamping_fraction_mul(&self, fraction: (u8, u8)) -> Self;
 }
 
 impl PixelArithmetic for olc::Pixel
 {
-    fn clamping_add(&self, other: &Self) -> Self
+    fn clamping_add(&self, other: Self) -> Self
     {
         let mut r = self.r as u16;
         let mut g = self.g as u16;
@@ -100,7 +104,7 @@ impl PixelArithmetic for olc::Pixel
         return olc::Pixel::rgb(r as u8, g as u8, b as u8);
     }
 
-    fn clamping_sub(&self, other: &Self) -> Self
+    fn clamping_sub(&self, other: Self) -> Self
     {
         let mut r = self.r as i16;
         let mut g = self.g as i16;
@@ -114,22 +118,26 @@ impl PixelArithmetic for olc::Pixel
         return olc::Pixel::rgb(r as u8, g as u8, b as u8);
     }
 
-    fn clamping_div(&self, divisor: u8) -> Self
+    fn sub(&self, other: Self) -> Self
     {
-        if divisor == 0
-        {
-            panic!("Function clamping_div may not have a divisor equal to 0.");
-        }
-        let mut r = self.r as u16;
-        let mut g = self.g as u16;
-        let mut b = self.b as u16;
-        r /= divisor as u16;
-        g /= divisor as u16;
-        b /= divisor as u16;
-        return olc::Pixel::rgb(r as u8, g as u8, b as u8);
+        let mut p = *self;
+        p.r -= other.r;
+        p.g -= other.g;
+        p.b -= other.b;
+        return p;
     }
 
-    fn normalised_mul(&self, other:& Self) -> Self
+    fn div(&self, divisor: u8) -> Self
+    {
+        debug_assert_ne!(divisor, 0);
+        let mut p = *self;
+        p.r /= divisor;
+        p.g /= divisor;
+        p.b /= divisor;
+        return p;
+    }
+
+    fn normalised_mul(&self, other: Self) -> Self
     {
         let mut r = self.r as u16;
         let mut g = self.g as u16;
@@ -140,6 +148,24 @@ impl PixelArithmetic for olc::Pixel
         r /= 255;
         g /= 255;
         b /= 255;
+        return olc::Pixel::rgb(r as u8, g as u8, b as u8);
+    }
+
+    fn clamping_fraction_mul(&self, fraction: (u8, u8)) -> Self
+    {
+        debug_assert_ne!(fraction.1, 0);
+        let mut r = self.r as u16;
+        let mut g = self.g as u16;
+        let mut b = self.b as u16;
+        r *= fraction.0 as u16;
+        g *= fraction.0 as u16;
+        b *= fraction.0 as u16;
+        r /= fraction.1 as u16;
+        g /= fraction.1 as u16;
+        b /= fraction.1 as u16;
+        r = r.min(255);
+        g = g.min(255);
+        b = b.min(255);
         return olc::Pixel::rgb(r as u8, g as u8, b as u8);
     }
 }

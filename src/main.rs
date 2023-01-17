@@ -11,7 +11,7 @@ const PROCESSOR_NAMES: [&str; 15] = ["Normal", "Sobel", "SobelColour", "Threshol
 
 fn main()
 {
-    println!("Make sure you have escapi.dll in the same folder as this executable.");
+    println!("Make sure to put escapi.dll in the same folder as this executable.");
     let pixelsize = get_pixel_size_input();
     let width = 640/pixelsize;
     let height = width * 9 / 16;
@@ -137,6 +137,7 @@ struct Window
     slider: Slider,
     processors: Vec<Processor>,
     input_mode: InputMode,
+    frame_time: std::time::Duration,
     hide_ui: bool,
     frame_counter: u64,
     frame: Image,
@@ -156,6 +157,7 @@ impl Window
             input_mode: InputMode::Normal,
             hide_ui: false,
             frame_counter: 0,
+            frame_time: std::time::Duration::from_millis(0),
             target: frame.clone(),
             _temp: frame.clone(),
             frame
@@ -236,7 +238,7 @@ impl olc::PGEApplication for Window
             std::thread::sleep(std::time::Duration::from_millis(80));
             return true;
         }
-        if self.frame_counter % 6 == 0
+        if self.frame_counter % 1 == 0
         {
             self.pre_process_input();
         }
@@ -340,7 +342,8 @@ impl olc::PGEApplication for Window
             pge.draw_string(pge.screen_width() as i32 - 120, keysy+10, &"[S] save image".to_string(), olc::WHITE);
 
             let input_duration = past_input - start;
-            let rendering_duration = end - past_input;
+            let rendering_duration = ((end - past_input) + self.frame_time * 99)/100;
+            self.frame_time = rendering_duration;
             pge.draw_string(0, 0, &("input duration: ".to_string() + &input_duration.as_secs_f32().to_string()), olc::WHITE);
             pge.draw_string(0, 10, &("rendering duration: ".to_string() + &rendering_duration.as_secs_f32().to_string()), olc::WHITE);
         }
