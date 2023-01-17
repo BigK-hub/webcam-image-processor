@@ -314,7 +314,12 @@ impl Image
     pub fn patterned_dithering(&self, target: &mut Image, bits_per_channel:usize)
     {
         assert_ne!(bits_per_channel, 0);
-        let max_values_per_channel = (1<<bits_per_channel).min(255) as u8;
+        let max_values_per_channel = (1<<bits_per_channel).min(255);
+        self.patterned_dithering_impl(target, max_values_per_channel);
+    }
+
+    pub fn patterned_dithering_impl(&self, target: &mut Image, max_values_per_channel: usize)
+    {
         let quantisation_factor = 255/(max_values_per_channel-1);
         let quantise = |mut p: olc::Pixel, factor|
             {
@@ -358,8 +363,13 @@ impl Image
     pub fn random_bias_dithering(&self, target: &mut Image, bits_per_channel:usize)
     {
         assert_ne!(bits_per_channel, 0);
-        let max_values_per_channel = (1<<bits_per_channel).min(255) as u8;
-        let quantisation_factor = 255/(max_values_per_channel-1);
+        let max_values_per_channel = (1<<bits_per_channel).min(255);
+        self.random_bias_dithering_impl(target, max_values_per_channel);
+    }
+
+    pub fn random_bias_dithering_impl(&self, target: &mut Image, max_values_per_channel: usize)
+    {
+        let quantisation_factor = 255/(max_values_per_channel- 1) as u8;
         let quantise = |p: olc::Pixel, factor|
             olc::Pixel::rgb(
                 (p.r / factor) * factor,
