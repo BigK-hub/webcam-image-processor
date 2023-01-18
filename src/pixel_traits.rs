@@ -57,6 +57,119 @@ impl DistanceSquared for olc::Pixel
     }
 }
 
+pub trait PixelArithmetic
+{
+    fn clamping_add(&self, other: Self) -> Self;
+
+    fn clamping_mul(&self, factor: u8) -> Self;
+
+    fn clamping_sub(&self, other: Self) -> Self;
+
+    fn sub(&self, other: Self) -> Self;
+
+    fn div(&self, divisor: u8) -> Self;
+
+    fn normalised_mul(&self, other: Self) -> Self;
+
+    fn clamping_fraction_mul(&self, fraction: (u8, u8)) -> Self;
+}
+
+impl PixelArithmetic for olc::Pixel
+{
+    fn clamping_add(&self, other: Self) -> Self
+    {
+        let mut r = self.r as u16;
+        let mut g = self.g as u16;
+        let mut b = self.b as u16;
+        r += other.r as u16;
+        g += other.g as u16;
+        b += other.b as u16;
+        r = r.min(255);
+        g = g.min(255);
+        b = b.min(255);
+        return olc::Pixel::rgb(r as u8, g as u8, b as u8);
+    }
+
+    fn clamping_mul(&self, factor: u8) -> Self
+    {
+        let mut r = self.r as u16;
+        let mut g = self.g as u16;
+        let mut b = self.b as u16;
+        r *= factor as u16;
+        g *= factor as u16;
+        b *= factor as u16;
+        r = r.min(255);
+        g = g.min(255);
+        b = b.min(255);
+        return olc::Pixel::rgb(r as u8, g as u8, b as u8);
+    }
+
+    fn clamping_sub(&self, other: Self) -> Self
+    {
+        let mut r = self.r as i16;
+        let mut g = self.g as i16;
+        let mut b = self.b as i16;
+        r -= other.r as i16;
+        g -= other.g as i16;
+        b -= other.b as i16;
+        r = r.max(0);
+        g = g.max(0);
+        b = b.max(0);
+        return olc::Pixel::rgb(r as u8, g as u8, b as u8);
+    }
+
+    fn sub(&self, other: Self) -> Self
+    {
+        let mut p = *self;
+        p.r -= other.r;
+        p.g -= other.g;
+        p.b -= other.b;
+        return p;
+    }
+
+    fn div(&self, divisor: u8) -> Self
+    {
+        debug_assert_ne!(divisor, 0);
+        let mut p = *self;
+        p.r /= divisor;
+        p.g /= divisor;
+        p.b /= divisor;
+        return p;
+    }
+
+    fn normalised_mul(&self, other: Self) -> Self
+    {
+        let mut r = self.r as u16;
+        let mut g = self.g as u16;
+        let mut b = self.b as u16;
+        r *= other.r as u16;
+        g *= other.g as u16;
+        b *= other.b as u16;
+        r /= 255;
+        g /= 255;
+        b /= 255;
+        return olc::Pixel::rgb(r as u8, g as u8, b as u8);
+    }
+
+    fn clamping_fraction_mul(&self, fraction: (u8, u8)) -> Self
+    {
+        debug_assert_ne!(fraction.1, 0);
+        let mut r = self.r as u16;
+        let mut g = self.g as u16;
+        let mut b = self.b as u16;
+        r *= fraction.0 as u16;
+        g *= fraction.0 as u16;
+        b *= fraction.0 as u16;
+        r /= fraction.1 as u16;
+        g /= fraction.1 as u16;
+        b /= fraction.1 as u16;
+        r = r.min(255);
+        g = g.min(255);
+        b = b.min(255);
+        return olc::Pixel::rgb(r as u8, g as u8, b as u8);
+    }
+}
+
 pub fn temporal_denoising(current_pixel: olc::Pixel, next_pixel: olc::Pixel) -> olc::Pixel
 {
     let dist2 = current_pixel.distance_squared(&next_pixel);

@@ -7,11 +7,16 @@ use camera_capture;
 use pixel_traits::*;
 
 const INPUT_MODE_NAMES: [&str; 3] = ["Normal", "TimeBlend", "Denoising"];
-const PROCESSOR_NAMES: [&str; 15] = ["Normal", "Sobel", "SobelColour", "Threshold", "ThresholdColour", "FloydSteinbergDithering", "GaussianBlur","Emboss","Outline", "BoxBlur", "GreyScale", "ChromaticAberration", "Sharpen", "SharpenColour", "CrossBlur"];
+const PROCESSOR_NAMES: [&str; 18] = ["Normal", "Sobel", "SobelColour",
+                                     "Threshold", "ThresholdColour", "RandomBiasDithering",
+                                     "PatternedDithering", "FloydSteinbergDithering", "GaussianBlur",
+                                     "BoxBlur", "Emboss","Outline", "GreyScale",
+                                     "ChromaticAberration", "Sharpen", "SharpenColour",
+                                     "LinearInterpolation","CrossBlur"];
 
 fn main()
 {
-    println!("Make sure you have escapi.dll in the same folder as this executable.");
+    println!("Make sure to put escapi.dll in the same folder as this executable.");
     let pixelsize = get_pixel_size_input();
     let width = 640/pixelsize;
     let height = width * 9 / 16;
@@ -70,16 +75,20 @@ enum Processor
     SobelColour,
     Threshold,
     ThresholdColour,
+    RandomBiasDithering,
+    PatternedDithering,
     FloydSteinbergDithering,
     GaussianBlur,
+    BoxBlur,
     Emboss,
     Outline,
-    BoxBlur,
     GreyScale,
     ChromaticAberration,
     Sharpen,
     SharpenColour,
+    LinearInterpolation,
     CrossBlur,
+    
 }
 
 #[allow(dead_code)]
@@ -137,6 +146,7 @@ struct Window
     slider: Slider,
     processors: Vec<Processor>,
     input_mode: InputMode,
+    frame_time: std::time::Duration,
     hide_ui: bool,
     frame_counter: u64,
     frame: Image,
@@ -156,6 +166,7 @@ impl Window
             input_mode: InputMode::Normal,
             hide_ui: false,
             frame_counter: 0,
+            frame_time: std::time::Duration::from_millis(0),
             target: frame.clone(),
             _temp: frame.clone(),
             frame
@@ -230,37 +241,44 @@ impl olc::PGEApplication for Window
     }
     fn on_user_update(&mut self, pge: &mut olc::PixelGameEngine, _delta: f32) -> bool
     {
+        let start = std::time::Instant::now();
         if !pge.is_focused()
         {
             std::thread::sleep(std::time::Duration::from_millis(80));
             return true;
         }
-        if self.frame_counter % 6 == 0
+        if self.frame_counter % 1 == 0
         {
             self.pre_process_input();
         }
         self.frame_counter += 1;
 
+        let past_input = std::time::Instant::now();
+
         for processor in &self.processors
         {
+            use Processor::*;
             //process frame
             match processor
             {
-                Processor::Normal => self.target.pixels.copy_from_slice(&self.frame.pixels),
-                Processor::Sobel => self.frame.sobel_edge_detection_3x3(&mut self.target),
-                Processor::SobelColour => self.frame.sobel_edge_detection_3x3_colour(&mut self.target),
-                Processor::Threshold => self.frame.threshold(&mut self.target, (pge.get_mouse_x()*255/ pge.screen_width() as i32) as u8),
-                Processor::ThresholdColour => self.frame.threshold_colour(&mut self.target, (pge.get_mouse_x()*255/ pge.screen_width() as i32) as u8),
-                Processor::FloydSteinbergDithering => self.frame.floyd_steinberg_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),
-                Processor::GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
-                Processor::BoxBlur => self.frame.box_blur(&mut self.target, ((((pge.get_mouse_x() as usize * 255 * 49 / pge.screen_width().pow(2) )/2)*2 + 1)).min((pge.screen_width()/2)*2 - 1).max(3)),
-                Processor::Emboss => self.frame.emboss(&mut self.target),
-                Processor::Outline => self.frame.outline(&mut self.target),
-                Processor::GreyScale => self.frame.greyscale(&mut self.target),
-                Processor::ChromaticAberration => self.frame.chromatic_aberration(&mut self.target, (pge.get_mouse_x() as usize * 255/ pge.screen_width())/20),
-                Processor::Sharpen => self.frame.sharpen(&mut self.target),
-                Processor::SharpenColour => self.frame.sharpen_colour(&mut self.target),
-                Processor::CrossBlur => self.frame.cross_blur(&mut self.target),
+                Normal => self.target.pixels.copy_from_slice(&self.frame.pixels),
+                Sobel => self.frame.sobel_edge_detection_3x3(&mut self.target),
+                SobelColour => self.frame.sobel_edge_detection_3x3_colour(&mut self.target),
+                Threshold => self.frame.threshold(&mut self.target, (pge.get_mouse_x()*255/ pge.screen_width() as i32) as u8),
+                ThresholdColour => self.frame.threshold_colour(&mut self.target, (pge.get_mouse_x()*255/ pge.screen_width() as i32) as u8),
+                RandomBiasDithering => self.frame.random_bias_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),//random_bias_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),
+                PatternedDithering => self.frame.patterned_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),
+                FloydSteinbergDithering => self.frame.floyd_steinberg_dithering(&mut self.target, pge.get_mouse_x() as usize * 8 / pge.screen_width() + 1),
+                GaussianBlur => self.frame.gaussian_blur_3x3(&mut self.target),
+                BoxBlur => self.frame.box_blur(&mut self.target, ((((pge.get_mouse_x() as usize * 255 * 49 / pge.screen_width().pow(2) )/2)*2 + 1)).min((pge.screen_width()/2)*2 - 1).max(3)),
+                Emboss => self.frame.emboss(&mut self.target),
+                Outline => self.frame.outline(&mut self.target),
+                GreyScale => self.frame.greyscale(&mut self.target),
+                ChromaticAberration => self.frame.chromatic_aberration(&mut self.target, (pge.get_mouse_x() as usize * 255/ pge.screen_width())/20),
+                Sharpen => self.frame.sharpen(&mut self.target),
+                SharpenColour => self.frame.sharpen_colour(&mut self.target),
+                LinearInterpolation => self.frame.linear_interpolation(&mut self.target, olc::RED, olc::BLACK),
+                CrossBlur => self.frame.cross_blur(&mut self.target),
             };
         }
 
@@ -305,15 +323,15 @@ impl olc::PGEApplication for Window
             let val = ( (self.input_mode as i32 + 1) % (InputMode::Denoising as i32 + 1) ) as u8;
             self.input_mode = unsafe{std::mem::transmute::<u8, InputMode>(val)};
         }
-
+        
         for y in 0..pge.screen_height()
         {
             for x in 0..pge.screen_width()
             {
-                pge.draw(x as i32, y as i32, *self.target.at(x,y));
+                pge.draw(x as i32, y as i32, self.target[(x,y)]);
             }
         }
-
+        let end = std::time::Instant::now();
         if !self.hide_ui
         {
             pge.fill_rect(self.slider.x + 2, self.slider.y, self.slider.w as u32, self.slider.h as u32, olc::Pixel::rgb(70, 150, 140));
@@ -334,7 +352,14 @@ impl olc::PGEApplication for Window
             let keysy = 50;
             pge.draw_string(pge.screen_width() as i32 - 120, keysy, &"[H] hide UI".to_string(), olc::WHITE);
             pge.draw_string(pge.screen_width() as i32 - 120, keysy+10, &"[S] save image".to_string(), olc::WHITE);
+
+            let input_duration = past_input - start;
+            let rendering_duration = ((end - past_input) + self.frame_time * 99)/100;
+            self.frame_time = rendering_duration;
+            pge.draw_string(0, 0, &("input duration: ".to_string() + &input_duration.as_secs_f32().to_string()), olc::WHITE);
+            pge.draw_string(0, 10, &("rendering duration: ".to_string() + &rendering_duration.as_secs_f32().to_string()), olc::WHITE);
         }
+
         true
     }
 }
