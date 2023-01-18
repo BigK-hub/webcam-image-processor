@@ -311,11 +311,16 @@ impl Image
             }
         );
     }
-    
+
     pub fn patterned_dithering(&self, target: &mut Image, bits_per_channel:usize)
     {
         assert_ne!(bits_per_channel, 0);
-        let max_values_per_channel = (1<<bits_per_channel).min(255) as u8;
+        let max_values_per_channel = (1<<bits_per_channel).min(255);
+        self.patterned_dithering_impl(target, max_values_per_channel);
+    }
+
+    pub fn patterned_dithering_impl(&self, target: &mut Image, max_values_per_channel: usize)
+    {
         let quantisation_factor = 255/(max_values_per_channel-1);
         let quantise = |mut p: olc::Pixel, factor|
             {
@@ -358,8 +363,13 @@ impl Image
     pub fn random_bias_dithering(&self, target: &mut Image, bits_per_channel:usize)
     {
         assert_ne!(bits_per_channel, 0);
-        let max_values_per_channel = (1<<bits_per_channel).min(255) as u8;
-        let quantisation_factor = 255/(max_values_per_channel-1);
+        let max_values_per_channel = (1<<bits_per_channel).min(255);
+        self.random_bias_dithering_impl(target, max_values_per_channel);
+    }
+
+    pub fn random_bias_dithering_impl(&self, target: &mut Image, max_values_per_channel: usize)
+    {
+        let quantisation_factor = 255/(max_values_per_channel- 1) as u8;
         let quantise = |p: olc::Pixel, factor|
             olc::Pixel::rgb(
                 (p.r / factor) * factor,
@@ -394,22 +404,85 @@ impl Image
     {
         assert_ne!(bits_per_channel, 0);
         let max_values_per_channel = if bits_per_channel > 7 {255} else{1 << bits_per_channel};
-        let quantisation_factor = (255/(max_values_per_channel-1) as u16) as u8;
+        self.floyd_steinberg_dithering_impl(target, max_values_per_channel);
+    }
 
+    pub fn floyd_steinberg_with_custom_colour_palette(&self, target: &mut Image, colour_palette: &[olc::Pixel])
+    {
         target.pixels.copy_from_slice(&self.pixels);
 
+        let quantise = |pixel: olc::Pixel|
+        {
+            let mut nearest_dist = 999999999;
+            let mut nearest_pixel = olc::BLACK;
+            for &other in colour_palette
+            {
+                if other.r <= pixel.r
+                && other.g <= pixel.g
+                && other.b <= pixel.b
+                {
+                    let dist = pixel.distance_squared(other);
+                    if dist < nearest_dist
+                    {
+                        nearest_dist = dist;
+                        nearest_pixel = other;
+                    }
+                }
+            }
+            nearest_pixel
+        };
+
+        let weighted_error = |error: olc::Pixel, factor:u8| error.clamping_fraction_mul((factor, 16));
 
         for y in 1..self.height-1
         {
             for x in 1..self.width-1
             {
                 let old_pixel = target[(x,y)];
-                let new = old_pixel.div(quantisation_factor).clamping_mul(quantisation_factor);
+                let new = quantise(old_pixel);
 
                 //we know that quantising a pixel always makes it either the same or darker than before
                 //this means that the error is always positive, and we can use u8s to store it
                 let error = old_pixel.sub(new);
-                let weighted_error = move |error: olc::Pixel, factor:u8| error.clamping_fraction_mul((factor, 16));
+                
+                let mut diffuse_error = |pos:(usize,usize), factor :u8|
+                {
+                    target[pos] = target[pos].clamping_add
+                    (
+                        weighted_error(error, factor)
+                    );
+                };
+
+                diffuse_error((x+1,   y),7);
+                diffuse_error((x-1, y+1),3);
+                diffuse_error((x  , y+1),5);
+                diffuse_error((x+1, y+1),1);
+                target[(x,y)] = new;
+            }
+        }
+    }
+
+    pub fn floyd_steinberg_dithering_impl(&self, target: &mut Image, max_values_per_channel: usize)
+    {
+        let quantisation_factor = (255/(max_values_per_channel-1) as u16) as u8;
+
+        target.pixels.copy_from_slice(&self.pixels);
+
+        let quantise = |pixel: olc::Pixel| pixel.div(quantisation_factor).clamping_mul(quantisation_factor);
+
+        let weighted_error = |error: olc::Pixel, factor:u8| error.clamping_fraction_mul((factor, 16));
+
+        for y in 1..self.height-1
+        {
+            for x in 1..self.width-1
+            {
+                let old_pixel = target[(x,y)];
+                let new = quantise(old_pixel);
+
+                //we know that quantising a pixel always makes it either the same or darker than before
+                //this means that the error is always positive, and we can use u8s to store it
+                let error = old_pixel.sub(new);
+                
                 let mut diffuse_error = |pos:(usize,usize), factor :u8|
                 {
                     target[pos] = target[pos].clamping_add

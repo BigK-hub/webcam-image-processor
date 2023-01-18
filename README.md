@@ -11,6 +11,8 @@ This program, written in rust, applies image processing effects to your webcam f
 - Floyd Steinberg Dithering
 - Gaussian Blur 3x3
 - Box Blur
+- Emboss
+- Outline
 - Greyscale
 - Chromatic Aberration
 - Sharpen

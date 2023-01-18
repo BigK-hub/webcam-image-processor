@@ -41,13 +41,13 @@ impl MagnitudeSquared for olc::Pixel
 pub trait DistanceSquared
 {
     type Output;
-    fn distance_squared(&self, other:&Self) -> Self::Output;
+    fn distance_squared(&self, other: Self) -> Self::Output;
 }
 
 impl DistanceSquared for olc::Pixel
 {
     type Output = u32;
-    fn distance_squared(&self, other: &olc::Pixel) -> Self::Output
+    fn distance_squared(&self, other: olc::Pixel) -> Self::Output
     {
         let r = self.r as i32 - other.r as i32;
         let g = self.g as i32 - other.g as i32;
@@ -172,7 +172,7 @@ impl PixelArithmetic for olc::Pixel
 
 pub fn temporal_denoising(current_pixel: olc::Pixel, next_pixel: olc::Pixel) -> olc::Pixel
 {
-    let dist2 = current_pixel.distance_squared(&next_pixel);
+    let dist2 = current_pixel.distance_squared(next_pixel);
     
     if dist2 > 100000
     {
