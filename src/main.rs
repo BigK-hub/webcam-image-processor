@@ -17,7 +17,7 @@ fn main()
     let height = width * 9 / 16;
     
     let cam = camera_capture::create(0).unwrap();
-    let mut cam_iter = cam.fps(30.0).unwrap().resolution(width as u32, height as u32).unwrap().start().unwrap();
+    let mut cam_iter = cam.fps(17.0).unwrap().resolution(width as u32, height as u32).unwrap().start().unwrap();
 
     let pixels = (0..width*height).map(|_x| Color::new(255,50,255)).collect::<Vec<Color>>();
 
@@ -41,7 +41,7 @@ fn main()
 
     px::launch(async move
     {
-        let game = px::EngineWrapper::new("Lines".to_owned(), (width as u32, height as u32, pixelsize as u32)).await;
+        let game = px::EngineWrapper::new("Lines".to_owned(), (width as u32, height as u32, pixelsize as u32 * 2)).await;
         game.run(move |game: &mut px::Engine|
             {
                 let start = std::time::Instant::now();
