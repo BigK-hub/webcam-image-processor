@@ -1,17 +1,18 @@
-use olc_pge as olc;
+use pixel_engine::Color;
 use crate::pixel_traits::*;
+use pixel_engine::vector2::Vi2d;
 
 #[derive(Clone)]
 pub struct Image
 {
     pub width:usize,
     pub height:usize,
-    pub pixels: Vec<olc::Pixel>
+    pub pixels: Vec<Color>
 }
 
 impl std::ops::Index<(usize, usize)> for Image
 {
-    type Output = olc::Pixel;
+    type Output = Color;
     fn index(&self, index: (usize, usize)) -> &Self::Output
     {
         debug_assert!(index.0 < self.width && index.1 < self.height, "Can't index Image with invalid coordinates.");
@@ -25,6 +26,52 @@ impl std::ops::IndexMut<(usize, usize)> for Image
     {
         debug_assert!(index.0 < self.width && index.1 < self.height, "Can't index Image with invalid coordinates.");
         &mut self.pixels[index.1*self.width+index.0]
+    }
+}
+
+impl std::ops::Index<(u32, u32)> for Image
+{
+    type Output = Color;
+    fn index(&self, index: (u32, u32)) -> &Self::Output
+    {
+        let x = index.0 as usize;
+        let y = index.1 as usize;
+        debug_assert!(x < self.width && y < self.height, "Can't index Image with invalid coordinates.");
+        &self.pixels[y*self.width+x]
+    }
+}
+
+impl std::ops::IndexMut<(u32, u32)> for Image
+{
+    fn index_mut(&mut self, index: (u32, u32)) -> &mut Self::Output
+    {
+        let x = index.0 as usize;
+        let y = index.1 as usize;
+        debug_assert!(x < self.width && y < self.height, "Can't index Image with invalid coordinates.");
+        &mut self.pixels[y*self.width+x]
+    }
+}
+
+impl std::ops::Index<Vi2d> for Image
+{
+    type Output = Color;
+    fn index(&self, index: Vi2d) -> &Self::Output
+    {
+        debug_assert!((0..self.width).contains(&(index.x as usize)) &&  (0..self.height).contains(&(index.y as usize)), "Can't index Image with invalid coordinates.");
+        let x = index.x as usize;
+        let y = index.y as usize;
+        &self.pixels[y*self.width+x]
+    }
+}
+
+impl std::ops::IndexMut<Vi2d> for Image
+{
+    fn index_mut(&mut self, index: Vi2d) -> &mut Self::Output
+    {
+        debug_assert!((0..self.width).contains(&(index.x as usize)) &&  (0..self.height).contains(&(index.y as usize)), "Can't index Image with invalid coordinates.");
+        let x = index.x as usize;
+        let y = index.y as usize;
+        &mut self.pixels[y*self.width+x]
     }
 }
 
@@ -110,7 +157,7 @@ impl Image
                 let r = r.min(255).max(0) as u8;
                 let g = g.min(255).max(0) as u8;
                 let b = b.min(255).max(0) as u8;
-                target[(x, y)] =  olc::Pixel::rgb(r as u8, g as u8, b as u8);
+                target[(x, y)] =  Color::new(r as u8, g as u8, b as u8);
             }
         }
     }
@@ -130,7 +177,7 @@ impl Image
     /// # 
     /// `edge_handler` is a function object that, unlike the kernel generator in `convolve()`, takes in 
     /// 
-    /// `kernel_size: usize, (image_x: usize, image_y: usize)`, and returns an `olc::Pixel` instead of an `i32`, which the target pixel will be set to.
+    /// `kernel_size: usize, (image_x: usize, image_y: usize)`, and returns an `Color` instead of an `i32`, which the target pixel will be set to.
     /// 
     /// The x and y in this function do **not** represent the coordinates of the kernel values.
     /// 
@@ -148,7 +195,7 @@ impl Image
     /// 
     /// 
     /// [image processing kernel]: https://en.wikipedia.org/wiki/Kernel_(image_processing)
-    pub fn handle_edges<F>(&self, target: &mut Image, kernel_size: usize, edge_handler: F) where F: Fn(&Image, usize, (usize, usize)) -> olc::Pixel
+    pub fn handle_edges<F>(&self, target: &mut Image, kernel_size: usize, edge_handler: F) where F: Fn(&Image, usize, (usize, usize)) -> Color
     {
         for y in (0..kernel_size/2).chain(self.height - kernel_size/2 .. self.height)
         {
@@ -185,12 +232,12 @@ impl Image
     ///         |p|
     ///         {
     ///             let brt = p.brightness();
-    ///             olc::Pixel::rgb(brt,brt,brt)
+    ///             Color::new(brt,brt,brt)
     ///         }
     ///     );
     /// }
     /// ```
-    pub fn map<F>(&self, target: &mut Image, transformer: F) where F: Fn(olc::Pixel) -> olc::Pixel
+    pub fn map<F>(&self, target: &mut Image, transformer: F) where F: Fn(Color) -> Color
     {
         //let (prefix, simd, suffix) = target.pixels.iter().map(|p| [p.r, p.g, p.b, p.a].iter()).as_simd_mut();
         for (i, &pixel) in self.pixels.iter().enumerate()
@@ -205,7 +252,7 @@ impl Image
             |p|
             {
                 let brt = p.brightness();
-                olc::Pixel::rgb(brt,brt,brt)
+                Color::new(brt,brt,brt)
             }
         );
     }
@@ -221,7 +268,7 @@ impl Image
                 if !(1..self.width-1).contains(&x)
                 || !(1..self.height-1).contains(&y)
                 {
-                    target[(x, y)] = olc::BLACK;
+                    target[(x, y)] = Color::BLACK;
                     continue;
                 }
                 let mut output = 0;
@@ -235,7 +282,7 @@ impl Image
                     }
                 }
                 let value = output.min(255).max(0) as u8;
-                target[(x, y)] = olc::Pixel::rgb(value, value, value);
+                target[(x, y)] = Color::new(value, value, value);
             }                   
         }
     }
@@ -261,7 +308,7 @@ impl Image
                 || !(1..self.height-1).contains(&y)
                 {
                     //handling edges here
-                    target[(x, y)] = olc::BLACK;
+                    target[(x, y)] = Color::BLACK;
                     continue;
                 }
                 let mut val_x = 0;
@@ -280,7 +327,7 @@ impl Image
                 }
 
                 let value = ((val_x*val_x + val_y*val_y) as f32).sqrt() as u8;
-                target[(x, y)] = olc::Pixel::rgb(value, value, value);
+                target[(x, y)] = Color::new(value, value, value);
             }                   
         }
     }
@@ -291,7 +338,7 @@ impl Image
             |p|
             {
                 let brt = p.brightness(); 
-                if brt >= threshold {olc::WHITE} else {olc::BLACK}
+                if brt >= threshold {Color::WHITE} else {Color::BLACK}
             }
         );
     }
@@ -301,7 +348,7 @@ impl Image
         self.map(target,
             |p|
             {
-                olc::Pixel::rgb
+                Color::new
                 (
                     (p.r >= threshold) as u8 * 255,
                     (p.g >= threshold) as u8 * 255,
@@ -321,7 +368,7 @@ impl Image
     pub fn patterned_dithering_impl(&self, target: &mut Image, max_values_per_channel: usize)
     {
         let quantisation_factor = 255/(max_values_per_channel-1);
-        let quantise = |mut p: olc::Pixel, factor|
+        let quantise = |mut p: Color, factor|
             {
                 p = p.div(factor).clamping_mul(factor);
                 p
@@ -354,7 +401,7 @@ impl Image
 
                 bias += ((x%4 == 0) == (y%4==0)) as u16 * 4 * quantisation_factor / (divisor + 1);
                 let bias = bias.min(255) as u8;
-                pixel = pixel.clamping_add(olc::Pixel::rgb(bias,bias,bias));
+                pixel = pixel.clamping_add(Color::new(bias,bias,bias));
                 target[(x,y)] = quantise(pixel, quantisation_factor as u8);
             }
         }
@@ -370,8 +417,8 @@ impl Image
     pub fn random_bias_dithering_impl(&self, target: &mut Image, max_values_per_channel: usize)
     {
         let quantisation_factor = 255/(max_values_per_channel- 1) as u8;
-        let quantise = |p: olc::Pixel, factor|
-            olc::Pixel::rgb(
+        let quantise = |p: Color, factor|
+            Color::new(
                 (p.r / factor) * factor,
                 (p.g / factor) * factor,
                 (p.b / factor) * factor,
@@ -382,7 +429,7 @@ impl Image
             {
                 let mut pixel = self[(x,y)];
                 let r = fastrand::u8(0..(quantisation_factor.max(2) as u16 *4/5) as u8);
-                pixel = pixel.clamping_add(olc::Pixel::rgb(r,r,r));
+                pixel = pixel.clamping_add(Color::new(r,r,r));
                 target[(x,y)] = quantise(pixel, quantisation_factor);
             }
         }
@@ -395,14 +442,14 @@ impl Image
         self.floyd_steinberg_dithering_impl(target, max_values_per_channel);
     }
 
-    pub fn floyd_steinberg_with_custom_colour_palette(&self, target: &mut Image, colour_palette: &[olc::Pixel])
+    pub fn floyd_steinberg_with_custom_colour_palette(&self, target: &mut Image, colour_palette: &[Color])
     {
         target.pixels.copy_from_slice(&self.pixels);
 
-        let quantise = |pixel: olc::Pixel|
+        let quantise = |pixel: Color|
         {
             let mut nearest_dist = 999999999;
-            let mut nearest_pixel = olc::BLACK;
+            let mut nearest_pixel = Color::BLACK;
             for &other in colour_palette
             {
                 if other.r <= pixel.r
@@ -420,7 +467,7 @@ impl Image
             nearest_pixel
         };
 
-        let weighted_error = |error: olc::Pixel, factor:u8| error.clamping_fraction_mul((factor, 16));
+        let weighted_error = |error: Color, factor:u8| error.clamping_fraction_mul((factor, 16));
 
         for y in 1..self.height-1
         {
@@ -456,9 +503,9 @@ impl Image
 
         target.pixels.copy_from_slice(&self.pixels);
 
-        let quantise = |pixel: olc::Pixel| pixel.div(quantisation_factor).clamping_mul(quantisation_factor);
+        let quantise = |pixel: Color| pixel.div(quantisation_factor).clamping_mul(quantisation_factor);
 
-        let weighted_error = |error: olc::Pixel, factor:u8| error.clamping_fraction_mul((factor, 16));
+        let weighted_error = |error: Color, factor:u8| error.clamping_fraction_mul((factor, 16));
 
         for y in 1..self.height-1
         {
@@ -563,7 +610,7 @@ impl Image
         }
     }
 
-    pub fn get_average_colour(&self) -> olc::Pixel
+    pub fn get_average_colour(&self) -> Color
     {
         let mut average_colour = (0,0,0);
         for &pixel in &self.pixels
@@ -575,7 +622,7 @@ impl Image
         average_colour.0 /= self.pixels.len() as u32;
         average_colour.1 /= self.pixels.len() as u32;
         average_colour.2 /= self.pixels.len() as u32;
-        olc::Pixel::rgb(average_colour.0 as u8, average_colour.1 as u8, average_colour.2 as u8)
+        Color::new(average_colour.0 as u8, average_colour.1 as u8, average_colour.2 as u8)
     }
 
     pub fn box_blur(&self, target: &mut Image, kernel_size: usize)
@@ -601,7 +648,7 @@ impl Image
                 || !(1..self.height-1).contains(&y)
                 {
                     //handling edges here
-                    target[(x, y)] = olc::BLACK;
+                    target[(x, y)] = Color::BLACK;
                     continue;
                 }
                 let mut rx = 0;
@@ -630,7 +677,7 @@ impl Image
                 let r = ((rx*rx + ry*ry) as f32).sqrt() as u8;
                 let g = ((gx*gx + gy*gy) as f32).sqrt() as u8;
                 let b = ((bx*bx + by*by) as f32).sqrt() as u8;
-                target[(x, y)] = olc::Pixel::rgb(r, g, b);
+                target[(x, y)] = Color::new(r, g, b);
             }                   
         }
     }
@@ -664,7 +711,7 @@ impl Image
                 }
 
                 let value = ((val_x*val_x + val_y*val_y) as f32).sqrt() as u8;
-                target[(x, y)] = olc::Pixel::rgb(value, value, value);
+                target[(x, y)] = Color::new(value, value, value);
             }
         }
     }

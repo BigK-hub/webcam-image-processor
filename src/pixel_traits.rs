@@ -1,5 +1,4 @@
-use olc_pge as olc;
-use lerp::Lerp;
+use pixel_engine::Color;
 
 pub trait Illuminator
 {
@@ -7,7 +6,7 @@ pub trait Illuminator
     fn brightness(&self) -> Self::Output;
 }
 
-impl Illuminator for olc::Pixel
+impl Illuminator for Color
 {
     type Output = u8; 
     fn brightness(&self) -> Self::Output
@@ -26,7 +25,7 @@ pub trait MagnitudeSquared
     fn mag2(&self) -> Self::Output;
 }
 
-impl MagnitudeSquared for olc::Pixel
+impl MagnitudeSquared for Color
 {
     type Output = u32;
     fn mag2(&self) -> Self::Output
@@ -44,10 +43,10 @@ pub trait DistanceSquared
     fn distance_squared(&self, other: Self) -> Self::Output;
 }
 
-impl DistanceSquared for olc::Pixel
+impl DistanceSquared for Color
 {
     type Output = u32;
-    fn distance_squared(&self, other: olc::Pixel) -> Self::Output
+    fn distance_squared(&self, other: Color) -> Self::Output
     {
         let r = self.r as i32 - other.r as i32;
         let g = self.g as i32 - other.g as i32;
@@ -74,7 +73,7 @@ pub trait PixelArithmetic
     fn clamping_fraction_mul(&self, fraction: (u8, u8)) -> Self;
 }
 
-impl PixelArithmetic for olc::Pixel
+impl PixelArithmetic for Color
 {
     fn clamping_add(&self, other: Self) -> Self
     {
@@ -87,7 +86,7 @@ impl PixelArithmetic for olc::Pixel
         r = r.min(255);
         g = g.min(255);
         b = b.min(255);
-        return olc::Pixel::rgb(r as u8, g as u8, b as u8);
+        return Color::new(r as u8, g as u8, b as u8);
     }
 
     fn clamping_mul(&self, factor: u8) -> Self
@@ -101,7 +100,7 @@ impl PixelArithmetic for olc::Pixel
         r = r.min(255);
         g = g.min(255);
         b = b.min(255);
-        return olc::Pixel::rgb(r as u8, g as u8, b as u8);
+        return Color::new(r as u8, g as u8, b as u8);
     }
 
     fn clamping_sub(&self, other: Self) -> Self
@@ -115,7 +114,7 @@ impl PixelArithmetic for olc::Pixel
         r = r.max(0);
         g = g.max(0);
         b = b.max(0);
-        return olc::Pixel::rgb(r as u8, g as u8, b as u8);
+        return Color::new(r as u8, g as u8, b as u8);
     }
 
     fn sub(&self, other: Self) -> Self
@@ -148,7 +147,7 @@ impl PixelArithmetic for olc::Pixel
         r /= 255;
         g /= 255;
         b /= 255;
-        return olc::Pixel::rgb(r as u8, g as u8, b as u8);
+        return Color::new(r as u8, g as u8, b as u8);
     }
 
     fn clamping_fraction_mul(&self, fraction: (u8, u8)) -> Self
@@ -166,11 +165,11 @@ impl PixelArithmetic for olc::Pixel
         r = r.min(255);
         g = g.min(255);
         b = b.min(255);
-        return olc::Pixel::rgb(r as u8, g as u8, b as u8);
+        return Color::new(r as u8, g as u8, b as u8);
     }
 }
 
-pub fn temporal_denoising(current_pixel: olc::Pixel, next_pixel: olc::Pixel) -> olc::Pixel
+pub fn temporal_denoising(current_pixel: Color, next_pixel: Color) -> Color
 {
     let dist2 = current_pixel.distance_squared(next_pixel);
     
@@ -187,5 +186,5 @@ pub fn temporal_denoising(current_pixel: olc::Pixel, next_pixel: olc::Pixel) -> 
     r /= fraction.1;
     g /= fraction.1;
     b /= fraction.1;
-    return olc::Pixel::rgb(r as u8, g as u8, b as u8);
+    return Color::new(r as u8, g as u8, b as u8);
 }
