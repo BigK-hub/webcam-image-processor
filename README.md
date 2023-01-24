@@ -6,6 +6,8 @@ This program, written in rust, applies image processing effects to your webcam f
 - Sobel with colour
 - Threshold
 - Threshold per channel
+- Map brightness to colour palette
+- Basic Kuwahara filter
 - Random Bias Dithering
 - Grid Pattern Dithering
 - Floyd Steinberg Dithering

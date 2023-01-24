@@ -10,6 +10,24 @@ use px::Color;
 use px::traits::*;
 use px::vector2::*;
 
+fn get_pixel_size_input() -> usize
+{
+    println!("Please enter the pixel size you want. Pixel sizes larger than 1 come with decreased resolution (image looks pixelated).");
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input).unwrap();
+    let output = 
+    loop
+    {
+        match input.trim().parse::<usize>()
+        {
+            Err(_e) => println!("Invalid input. Input must be a natural number between 1 and 32. Recommended values are: 1, 2, 4, and 8."),
+            Ok(num) => if num <= 32 && num >= 1{break num} else{println!("Value was outside of permissible range. Enter a value between 1 and 32.");},
+        };
+        std::io::stdin().read_line(&mut input).unwrap();
+    };
+    return output;
+}
+
 fn main()
 {
     let pixelsize = get_pixel_size_input();
@@ -41,7 +59,7 @@ fn main()
 
     px::launch(async move
     {
-        let game = px::EngineWrapper::new("Lines".to_owned(), (width as u32, height as u32, pixelsize as u32 * 2)).await;
+        let game = px::EngineWrapper::new("Webcam Image Processor".to_owned(), (width as u32, height as u32, pixelsize as u32 * 2)).await;
         game.run(move |game: &mut px::Engine|
             {
                 let start = std::time::Instant::now();
@@ -67,6 +85,8 @@ fn main()
                         SobelColour => frame.sobel_edge_detection_3x3_colour(&mut target),
                         Threshold => frame.threshold(&mut target, (game.get_mouse_location().x*255/ game.size().x) as u8),
                         ThresholdColour => frame.threshold_colour(&mut target, (game.get_mouse_location().x * 255/ game.size().x) as u8),
+                        MapBrightnessToColourPalette => frame.map_brightness_to_colour_pallette(&mut target, &[rgb(10, 20, 15), rgb(50, 20, 20), rgb(100, 80, 40), rgb(150, 130, 100)]),
+                        BasicKuwaharaFilter => frame.basic_kuwahara_filter(&mut target, 5),
                         RandomBiasDithering => frame.random_bias_dithering(&mut target, game.get_mouse_location().x as usize * 8 / game.size().x as usize + 1),
                         PatternedDithering => frame.patterned_dithering(&mut target, game.get_mouse_location().x as usize * 8 / game.size().x as usize + 1),
                         FloydSteinbergDithering => frame.floyd_steinberg_dithering(&mut target, game.get_mouse_location().x as usize * 8 / game.size().x as usize + 1),
@@ -137,32 +157,14 @@ fn main()
                 let end = std::time::Instant::now();
                 if !hide_ui
                 {
+                    render_ui(game, &mut slider, input_mode, &processors);
+
                     let scale = Vf2d::from([1.0, 1.0]);
-
-                    game.draw_rect(slider.pos.cast_i32(), slider.size.cast_i32(), Color::new(70, 150, 140));
-                    game.fill_rect(Vu2d::from([slider.get_slider_x(), slider.pos.y]).cast_i32(), Vi2d::from([2, slider.size.y as i32]), Color::new(200, 235, 225));
-                    game.draw_text_decal(Vf2d::from([5.0, game.size().y as f32 - 20.0]), "Processor:", scale, Color::WHITE);
-                    
-                    // game.draw_string(5, game.size().y as i32 - 10, &format!("{:?}", processors[0]), Color::WHITE);
-                    // game.draw_string(game.size().x as i32 - 80, game.size().x as i32 - 25, &"InputMode:".to_string(), Color::WHITE);
-                    // game.draw_string(game.size().x as i32 - 80, game.size().x as i32 - 10, &format!("{:?}", input_mode), Color::WHITE);
-                    
-                    // game.draw_string(game.size().x as i32 - 145, 3, &"[<] Processors [>]".to_string(), Color::WHITE);
-                    
-                    // let inputy = 25;
-                    // game.draw_string(game.size().x as i32 - 65  , inputy - 8, &"[^]".to_string()        , Color::WHITE);
-                    // game.draw_string(game.size().x as i32 - 100 , inputy    , &"Input Modes".to_string(), Color::WHITE);
-                    // game.draw_string(game.size().x as i32 - 65  , inputy + 8, &"[v]".to_string()        , Color::WHITE);
-                    
-                    // let keysy = 50;
-                    // game.draw_string(game.size().x as i32 - 120, keysy, &"[H] hide UI".to_string(), Color::WHITE);
-                    // game.draw_string(game.size().x as i32 - 120, keysy+10, &"[S] save image".to_string(), Color::WHITE);
-
-                    // let input_duration = past_input - start;
-                    // let rendering_duration = ((end - past_input) + frame_time * 99)/100;
-                    // frame_time = rendering_duration;
-                    // game.draw_string(0, 0, &("input duration: ".to_string() + &input_duration.as_secs_f32().to_string()), Color::WHITE);
-                    // game.draw_string(0, 10, &("rendering duration: ".to_string() + &rendering_duration.as_secs_f32().to_string()), Color::WHITE);
+                    let input_duration = past_input - start;
+                    let rendering_duration = ((end - past_input) + frame_time * (end - past_input).as_millis() as u32);
+                    frame_time = rendering_duration;
+                    game.draw_text_decal(Vf2d::from([0.0, 0.0]), format!("input duration: {}", input_duration.as_secs_f32().to_string()), scale, Color::WHITE);
+                    game.draw_text_decal(Vf2d::from([0.0, 10.0]), format!("rendering duration: {}", rendering_duration.as_secs_f32().to_string()), scale, Color::WHITE);
                 }
 
                 if game.get_key(px::inputs::Keycodes::Escape).held
@@ -175,22 +177,27 @@ fn main()
     });
 }
 
-fn get_pixel_size_input() -> usize
+fn render_ui(game: &mut px::Engine, slider: &mut Slider, input_mode: InputMode, processors: &[Processor])
 {
-    println!("Please enter the pixel size you want. Pixel sizes larger than 1 come with decreased resolution (image looks pixelated).");
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input).unwrap();
-    let output = 
-    loop
-    {
-        match input.trim().parse::<usize>()
-        {
-            Err(_e) => println!("Invalid input. Input must be a natural number between 1 and 32. Recommended values are: 1, 2, 4, and 8."),
-            Ok(num) => if num <= 32 && num >= 1{break num} else{println!("Value was outside of permissible range. Enter a value between 1 and 32.");},
-        };
-        std::io::stdin().read_line(&mut input).unwrap();
-    };
-    return output;
+    let scale = Vf2d::from([1.0, 1.0]);
+
+    game.draw_rect(slider.pos.cast_i32(), slider.size.cast_i32(), Color::new(70, 150, 140));
+    game.fill_rect(Vu2d::from([slider.get_slider_x(), slider.pos.y]).cast_i32(), Vi2d::from([2, slider.size.y as i32]), Color::new(200, 235, 225));
+    
+    game.draw_text_decal(Vf2d::from([5.0, game.size().y as f32 - 20.0]), "Processor:", scale, Color::WHITE);
+    game.draw_text_decal(Vf2d::from([5.0, game.size().y as f32 - 10.0]), format!("[<]{:?}[>]", processors[0]), scale, Color::WHITE);
+    
+    game.draw_text_decal(Vf2d::from([game.size().x as f32 - 80.0, game.size().y as f32 - 45.0]), "Input Mode:", scale, Color::WHITE);
+
+    let inputstr = format!("{:?}", input_mode);
+    let inputx = game.size().x  as f32 - inputstr.len() as f32 * 10.0;
+    game.draw_text_decal(Vf2d::from([inputx + (inputstr.len() as f32 * 5.0)  - 15.0, game.size().y as f32 - 30.0]), "[^]", scale, Color::WHITE);
+    game.draw_text_decal(Vf2d::from([inputx, game.size().y as f32 - 20.0]), &inputstr, scale, Color::WHITE);
+    game.draw_text_decal(Vf2d::from([inputx + (inputstr.len() as f32 * 5.0) - 15.0, game.size().y as f32 - 10.0]), "[v]", scale, Color::WHITE);
+    
+    let keysy = 5.0;
+    game.draw_text_decal(Vf2d::from([game.size().x as f32 - 120.0, keysy]), "[H] hide UI", scale, Color::WHITE);
+    game.draw_text_decal(Vf2d::from([game.size().x as f32 - 120.0, keysy + 10.0]), "[S] save image", scale, Color::WHITE);
 }
 
 #[allow(dead_code)]
@@ -202,6 +209,8 @@ enum Processor
     SobelColour,
     Threshold,
     ThresholdColour,
+    MapBrightnessToColourPalette,
+    BasicKuwaharaFilter,
     RandomBiasDithering,
     PatternedDithering,
     FloydSteinbergDithering,
@@ -225,6 +234,8 @@ enum InputMode
     TimeBlend,
     Denoising,
 }
+
+
 
 struct Slider
 {

@@ -535,7 +535,7 @@ impl Image
         }
     }
 
-    pub fn gaussian_blur_3x3(&mut self, target: &mut Image)
+    pub fn gaussian_blur_3x3(&self, target: &mut Image)
     {
         self.convolve(target, 3, |s, (x,y)|
             [
@@ -549,7 +549,7 @@ impl Image
             img[(x,y)]
         );
     }
-    pub fn emboss(&mut self, target: &mut Image)
+    pub fn emboss(&self, target: &mut Image)
     {
         self.convolve(target, 3, |s, (x,y)|
             [
@@ -563,7 +563,7 @@ impl Image
             img[(x,y)]
         );
     }
-    pub fn outline(&mut self, target: &mut Image)
+    pub fn outline(&self, target: &mut Image)
     {
         self.convolve(target, 3, |s, (x,y)|
             [
@@ -578,6 +578,117 @@ impl Image
         );
     }
 
+    pub fn map_brightness_to_colour_pallette(&self, target: &mut Image, colour_palette: &[Color])
+    {
+        if colour_palette.is_empty()
+        {
+            for pixel in target.pixels.iter_mut()
+            {
+                *pixel = Color::BLACK;
+            }
+        }
+        let divisor = 255/colour_palette.len().min(255) + 1;
+        for y in 0..self.height
+        {
+            for x in 0..self.width
+            {
+                target[(x,y)] = colour_palette[self[(x,y)].brightness() as usize / divisor];
+            }
+        }
+    }
+
+    fn get_average_colour_and_variance_of_block(&self, rangex: std::ops::Range<usize>, rangey: std::ops::Range<usize>) -> (Color, u32)
+    {
+        let mut avg_colour = (0i32,0i32,0i32);
+        let mut counter = 0;
+        for y in rangey.clone()
+        {
+            for x in rangex.clone()
+            {
+                let p = self[(x,y)];
+                if counter == 0
+                {
+                    counter = 1;
+                    avg_colour = (p.r as i32, p.g as i32, p.b as i32);
+                    continue;
+                }
+                avg_colour.0 += p.r as i32;
+                avg_colour.1 += p.g as i32;
+                avg_colour.2 += p.b as i32;
+                counter += 1;
+            }
+        }
+        avg_colour.0 /= counter;
+        avg_colour.1 /= counter;
+        avg_colour.2 /= counter;
+        
+        let mut variance = 0;
+        for y in rangey
+        {
+            for x in rangex.clone()
+            {
+                let p = self[(x,y)];
+                let mut sum = 0;
+                sum += (p.r as i32 - avg_colour.0).pow(2);
+                sum += (p.g as i32 - avg_colour.1).pow(2);
+                sum += (p.b as i32 - avg_colour.1).pow(2);
+                variance += sum/3;
+            }
+        }
+
+        (Color::new(avg_colour.0 as u8, avg_colour.1 as u8, avg_colour.2 as u8), variance as u32)
+    }
+
+    pub fn basic_kuwahara_filter(&self, target: &mut Image, kernel_size: usize)
+    {
+        if kernel_size % 2 == 0
+        {
+            self.basic_kuwahara_filter(target, kernel_size.max(2) - 1);
+            return;
+        }
+        for y in 0..self.height
+        {
+            for x in 0..self.width
+            {
+                let mut output = Color::BLACK;
+                if (kernel_size/2..self.width - kernel_size/2).contains(&x)
+                && (kernel_size/2..self.height - kernel_size/2).contains(&y)
+                {
+                    let x1 = kernel_size/2;
+                    let x2 = kernel_size - kernel_size / 2;
+                    let y1 = kernel_size/2;
+                    let y2 = kernel_size - kernel_size / 2;
+                    let mut lowest_variance = u32::MAX;
+                    let x = x - kernel_size/ 2;
+                    let y = y - kernel_size/2;
+                    let (avg_quadrant_1, variance) = self.get_average_colour_and_variance_of_block(x..x+x1, y..y+y1);
+                    if variance < lowest_variance
+                    {
+                        lowest_variance = variance;
+                        output = avg_quadrant_1;
+                    }
+                    let (avg_quadrant_2, variance) = self.get_average_colour_and_variance_of_block(x+x2..x+kernel_size, y+0..y+y1);
+                    if variance < lowest_variance
+                    {
+                        lowest_variance = variance;
+                        output = avg_quadrant_2;
+                    }
+                    let (avg_quadrant_3, variance) = self.get_average_colour_and_variance_of_block(x+0..x+x1, y+y2..y+kernel_size);
+                    if variance < lowest_variance
+                    {
+                        lowest_variance = variance;
+                        output = avg_quadrant_3;
+                    }
+                    let (avg_quadrant_4, variance) = self.get_average_colour_and_variance_of_block(x+x2..x+kernel_size, y+y2..y+kernel_size);
+                    if variance < lowest_variance
+                    {
+                        output = avg_quadrant_4;
+                    }
+                }
+                target[(x,y)] = output;
+            }
+        }
+    }
 
     /// Offsets each channel by the provided `offset`.
     pub fn chromatic_aberration(&self, target: &mut Image, offset: usize)
