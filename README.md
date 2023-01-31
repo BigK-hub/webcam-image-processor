@@ -8,9 +8,11 @@ This program, written in rust, applies image processing effects to your webcam f
 - Threshold per channel
 - Map brightness to colour palette
 - Basic Kuwahara filter
+- Improved Kuwahara Filter
 - Random Bias Dithering
-- Grid Pattern Dithering
+- Patterned Dithering
 - Floyd Steinberg Dithering
+- Floyd Steinberg Dithering with Custom Colour Palettes
 - Gaussian Blur 3x3
 - Box Blur
 - Emboss
