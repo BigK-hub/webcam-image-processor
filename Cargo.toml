@@ -13,6 +13,12 @@ camera_capture = "0.5.0"
 lerp = "0.4.0"
 png = "0.17.7"
 
+
+#cdgu1  1min 2sec   3.5mb
+#lto    1min 15sec  2.9mb
+
 [profile.release]
+#codegen-units = 1
 #lto = true
-opt-level = 3
+#strip = true
+opt-level = "z"

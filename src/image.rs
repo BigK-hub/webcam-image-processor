@@ -690,6 +690,77 @@ impl Image
         }
     }
 
+    pub fn improved_kuwahara_filter(&self, target: &mut Image, kernel_size: usize)
+    {
+        if kernel_size % 2 == 0
+        {
+            self.basic_kuwahara_filter(target, kernel_size.max(2) - 1);
+            return;
+        }
+        for y in 0..self.height
+        {
+            for x in 0..self.width
+            {
+                let mut output = Color::BLACK;
+                if (kernel_size/2..self.width - kernel_size/2).contains(&x)
+                && (kernel_size/2..self.height - kernel_size/2).contains(&y)
+                {
+                    let x1 = kernel_size/2;
+                    let x2 = kernel_size - kernel_size / 2;
+                    let y1 = kernel_size/2;
+                    let y2 = kernel_size - kernel_size / 2;
+                    let mut lowest_variance = u32::MAX;
+                    let x = x - kernel_size/ 2;
+                    let y = y - kernel_size/2;
+                    let (avg_quadrant_1, variance) = self.get_average_colour_and_variance_of_block(x..x+x1, y..y+y1);
+                    if variance < lowest_variance
+                    {
+                        lowest_variance = variance;
+                        output = avg_quadrant_1;
+                    }
+                    else if variance == lowest_variance
+                    {
+                        lowest_variance = variance;
+                        output = avg_quadrant_1.div(2).clamping_add(output.div(2));
+                    }
+                    let (avg_quadrant_2, variance) = self.get_average_colour_and_variance_of_block(x+x2..x+kernel_size, y+0..y+y1);
+                    if variance < lowest_variance
+                    {
+                        lowest_variance = variance;
+                        output = avg_quadrant_2;
+                    }
+                    else if variance == lowest_variance
+                    {
+                        lowest_variance = variance;
+                        output = avg_quadrant_2.div(2).clamping_add(output.div(2));
+                    }
+                    let (avg_quadrant_3, variance) = self.get_average_colour_and_variance_of_block(x+0..x+x1, y+y2..y+kernel_size);
+                    if variance < lowest_variance
+                    {
+                        lowest_variance = variance;
+                        output = avg_quadrant_3;
+                    }
+                    else if variance == lowest_variance
+                    {
+                        lowest_variance = variance;
+                        output = avg_quadrant_3.div(2).clamping_add(output.div(2));
+                    }
+                    let (avg_quadrant_4, variance) = self.get_average_colour_and_variance_of_block(x+x2..x+kernel_size, y+y2..y+kernel_size);
+                    if variance < lowest_variance
+                    {
+                        output = avg_quadrant_4;
+                    }
+                    else if variance == lowest_variance
+                    {
+                        output = avg_quadrant_4.div(2).clamping_add(output.div(2));
+                    }
+                }
+                target[(x,y)] = output;
+            }
+        }
+    }
+
+
     /// Offsets each channel by the provided `offset`.
     pub fn chromatic_aberration(&self, target: &mut Image, offset: usize)
     {

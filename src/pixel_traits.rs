@@ -9,6 +9,7 @@ pub trait Illuminator
 impl Illuminator for Color
 {
     type Output = u8; 
+    #[inline]
     fn brightness(&self) -> Self::Output
     {
         let mut value = 0;
@@ -28,6 +29,7 @@ pub trait MagnitudeSquared
 impl MagnitudeSquared for Color
 {
     type Output = u32;
+    #[inline]
     fn mag2(&self) -> Self::Output
     {
         let r = self.r as u32;
@@ -46,11 +48,16 @@ pub trait DistanceSquared
 impl DistanceSquared for Color
 {
     type Output = u32;
+    #[inline]
     fn distance_squared(&self, other: Color) -> Self::Output
     {
-        let r = self.r as i32 - other.r as i32;
-        let g = self.g as i32 - other.g as i32;
-        let b = self.b as i32 - other.b as i32;
+        // let r = self.r as i32 - other.r as i32;
+        // let g = self.g as i32 - other.g as i32;
+        // let b = self.b as i32 - other.b as i32;
+
+        let r = (self.r.max(other.r) - self.r.min(other.r)) as u32;
+        let g = (self.g.max(other.g) - self.r.min(other.g)) as u32;
+        let b = (self.b.max(other.b) - self.r.min(other.b)) as u32;
 
         return (r*r+g*g+b*b) as u32;
     }
@@ -75,6 +82,7 @@ pub trait PixelArithmetic
 
 impl PixelArithmetic for Color
 {
+    #[inline]
     fn clamping_add(&self, other: Self) -> Self
     {
         let mut r = self.r as u16;
@@ -89,6 +97,7 @@ impl PixelArithmetic for Color
         return Color::new(r as u8, g as u8, b as u8);
     }
 
+    #[inline]
     fn clamping_mul(&self, factor: u8) -> Self
     {
         let mut r = self.r as u16;
@@ -103,6 +112,7 @@ impl PixelArithmetic for Color
         return Color::new(r as u8, g as u8, b as u8);
     }
 
+    #[inline]
     fn clamping_sub(&self, other: Self) -> Self
     {
         let mut r = self.r as i16;
@@ -117,6 +127,7 @@ impl PixelArithmetic for Color
         return Color::new(r as u8, g as u8, b as u8);
     }
 
+    #[inline]
     fn sub(&self, other: Self) -> Self
     {
         let mut p = *self;
@@ -126,6 +137,7 @@ impl PixelArithmetic for Color
         return p;
     }
 
+    #[inline]
     fn div(&self, divisor: u8) -> Self
     {
         debug_assert_ne!(divisor, 0);
@@ -136,6 +148,7 @@ impl PixelArithmetic for Color
         return p;
     }
 
+    #[inline]
     fn normalised_mul(&self, other: Self) -> Self
     {
         let mut r = self.r as u16;
@@ -150,6 +163,7 @@ impl PixelArithmetic for Color
         return Color::new(r as u8, g as u8, b as u8);
     }
 
+    #[inline]
     fn clamping_fraction_mul(&self, fraction: (u8, u8)) -> Self
     {
         debug_assert_ne!(fraction.1, 0);
@@ -171,6 +185,7 @@ impl PixelArithmetic for Color
 
 pub fn temporal_denoising(current_pixel: Color, next_pixel: Color) -> Color
 {
+    //somehow these values are great, but if you find constants that give better results pls let me know
     let dist2 = current_pixel.distance_squared(next_pixel);
     
     if dist2 > 100000

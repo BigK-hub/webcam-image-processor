@@ -20,7 +20,7 @@ fn get_pixel_size_input() -> usize
     {
         match input.trim().parse::<usize>()
         {
-            Err(_e) => println!("Invalid input. Input must be a natural number between 1 and 32. Recommended values are: 1, 2, 4, and 8."),
+            Err(_e) => println!("Invalid input. Input must be a natural number between 1 and 32. Recommended values are: 1, 2, and 4."),
             Ok(num) => if num <= 32 && num >= 1{break num} else{println!("Value was outside of permissible range. Enter a value between 1 and 32.");},
         };
         std::io::stdin().read_line(&mut input).unwrap();
@@ -28,14 +28,25 @@ fn get_pixel_size_input() -> usize
     return output;
 }
 
+#[cfg(windows)]
+fn get_resolution(pixel_size: usize) -> (usize, usize)
+{
+    (640/pixel_size, 360/pixel_size)
+}
+
+#[cfg(linux)]
+fn get_resolution() -> (usize, usize)
+{
+    (640/pixel_size, 480/pixel_size)
+}
+
 fn main()
 {
     let pixelsize = get_pixel_size_input();
-    let width = 640/pixelsize;
-    let height = width * 9 / 16;
-    
+    let (width, height) = get_resolution(pixelsize);
+
     let cam = camera_capture::create(0).unwrap();
-    let mut cam_iter = cam.fps(17.0).unwrap().resolution(width as u32, height as u32).unwrap().start().unwrap();
+    let mut cam_iter = cam.resolution(width as u32, height as u32).unwrap().start().unwrap();
 
     let pixels = (0..width*height).map(|_x| Color::new(255,50,255)).collect::<Vec<Color>>();
 
@@ -71,7 +82,7 @@ fn main()
                 
                 pre_process_input(&mut cam_iter, input_mode, &mut frame);
 
-                let past_input = std::time::Instant::now();
+                let start_render = std::time::Instant::now();
 
                 for processor in processors.iter()
                 {
@@ -87,6 +98,7 @@ fn main()
                         ThresholdColour => frame.threshold_colour(&mut target, (game.get_mouse_location().x * 255/ game.size().x) as u8),
                         MapBrightnessToColourPalette => frame.map_brightness_to_colour_pallette(&mut target, &[rgb(10, 20, 15), rgb(50, 20, 20), rgb(100, 80, 40), rgb(150, 130, 100)]),
                         BasicKuwaharaFilter => frame.basic_kuwahara_filter(&mut target, 5),
+                        ImprovedKuwaharaFilter => frame.improved_kuwahara_filter(&mut target, 5),
                         RandomBiasDithering => frame.random_bias_dithering(&mut target, game.get_mouse_location().x as usize * 8 / game.size().x as usize + 1),
                         PatternedDithering => frame.patterned_dithering(&mut target, game.get_mouse_location().x as usize * 8 / game.size().x as usize + 1),
                         FloydSteinbergDithering => frame.floyd_steinberg_dithering(&mut target, game.get_mouse_location().x as usize * 8 / game.size().x as usize + 1),
@@ -102,7 +114,6 @@ fn main()
                         CrossBlur => frame.cross_blur(&mut target),
                     };
                 }
-
                 
                 if game.get_mouse_btn(px::inputs::MouseBtn::Left).held
                 {
@@ -160,11 +171,11 @@ fn main()
                     render_ui(game, &mut slider, input_mode, &processors);
 
                     let scale = Vf2d::from([1.0, 1.0]);
-                    let input_duration = past_input - start;
-                    let rendering_duration = ((end - past_input) + frame_time * (end - past_input).as_millis() as u32);
-                    frame_time = rendering_duration;
+                    let input_duration = start_render - start;
+                    //let rendering_duration = ((end - start_render) + frame_time) / 2;
+                    //frame_time = rendering_duration;
                     game.draw_text_decal(Vf2d::from([0.0, 0.0]), format!("input duration: {}", input_duration.as_secs_f32().to_string()), scale, Color::WHITE);
-                    game.draw_text_decal(Vf2d::from([0.0, 10.0]), format!("rendering duration: {}", rendering_duration.as_secs_f32().to_string()), scale, Color::WHITE);
+                    //game.draw_text_decal(Vf2d::from([0.0, 10.0]), format!("rendering duration: {}", rendering_duration.as_secs_f32().to_string()), scale, Color::WHITE);
                 }
 
                 if game.get_key(px::inputs::Keycodes::Escape).held
@@ -211,6 +222,7 @@ enum Processor
     ThresholdColour,
     MapBrightnessToColourPalette,
     BasicKuwaharaFilter,
+    ImprovedKuwaharaFilter,
     RandomBiasDithering,
     PatternedDithering,
     FloydSteinbergDithering,
@@ -234,8 +246,6 @@ enum InputMode
     TimeBlend,
     Denoising,
 }
-
-
 
 struct Slider
 {
