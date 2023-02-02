@@ -75,6 +75,25 @@ impl std::ops::IndexMut<Vi2d> for Image
     }
 }
 
+fn get_average_colour(colours: &[Color]) -> Color
+{
+    let mut r = 0;
+    let mut g = 0;
+    let mut b = 0;
+    for &colour in colours
+    {
+        r += colour.r as u32;
+        g += colour.g as u32;
+        b += colour.b as u32;
+    }
+    r /= colours.len() as u32;
+    g /= colours.len() as u32;
+    b /= colours.len() as u32;
+    let r = r as u8;
+    let g = g as u8;
+    let b = b as u8;
+    return Color::new(r,g,b);
+}
 
 impl Image
 {
@@ -792,28 +811,57 @@ impl Image
         }
     }
 
-    pub fn get_average_colour(&self) -> Color
-    {
-        let mut average_colour = (0,0,0);
-        for &pixel in &self.pixels
-        {
-            average_colour.0 += pixel.r as u32;
-            average_colour.1 += pixel.g as u32;
-            average_colour.2 += pixel.b as u32;
-        }
-        average_colour.0 /= self.pixels.len() as u32;
-        average_colour.1 /= self.pixels.len() as u32;
-        average_colour.2 /= self.pixels.len() as u32;
-        Color::new(average_colour.0 as u8, average_colour.1 as u8, average_colour.2 as u8)
-    }
 
-    pub fn box_blur(&self, target: &mut Image, kernel_size: usize)
+    pub fn naive_box_blur(&self, target: &mut Image, kernel_size: usize)
     {
         self.convolve(target, kernel_size, |_s, (_x, _y)| 1, (kernel_size*kernel_size) as i32);
-        let average_colour = self.get_average_colour();
+        let average_colour = get_average_colour(&self.pixels);
         self.handle_edges(target, kernel_size, 
             |_, _, _|
             average_colour
+        );
+    }
+
+    pub fn efficient_box_blur(&mut self, target: &mut Image, temp: &mut Image, kernel_size: usize)
+    {
+        //i had no idea that kernel convolutions can be seperable
+        //this seems so obvious now
+
+        for y in 0..self.height
+        {
+            for x in kernel_size/2..self.width-kernel_size/2
+            {
+                let index = y*self.width+x;
+                let avg = get_average_colour(&self.pixels[index-kernel_size/2..index+kernel_size/2]);
+                temp[(x,y)] = avg;
+            }
+        }
+        for y in kernel_size/2..self.height-kernel_size/2
+        {
+            for x in kernel_size/2..self.width-kernel_size/2
+            {
+                let mut r = 0;
+                let mut g = 0;
+                let mut b = 0;
+                for _y in y-kernel_size/2..y+kernel_size-kernel_size/2
+                {
+                    let colour = temp[(x,_y)];
+                    r += colour.r as u32;
+                    g += colour.g as u32;
+                    b += colour.b as u32;
+                }
+                r /= kernel_size as u32;
+                g /= kernel_size as u32;
+                b /= kernel_size as u32;
+                let r = r as u8;
+                let g = g as u8;
+                let b = b as u8;
+                target[(x,y)] = Color::new(r,g,b);
+            }
+        }
+        self.handle_edges(target, kernel_size, 
+            |_, _, _|
+            Color::BLACK
         );
     }
 

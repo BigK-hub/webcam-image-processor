@@ -104,7 +104,7 @@ fn main()
                         FloydSteinbergDithering => frame.floyd_steinberg_dithering(&mut target, game.get_mouse_location().x as usize * 8 / game.size().x as usize + 1),
                         FloydSteinbergDitheringCustomPalette => frame.floyd_steinberg_with_custom_colour_palette(&mut target, &[rgb(0,60,60),rgb(140,120,50),rgb(255,225,0),rgb(60,60,80),rgb(60,60,140),rgb(80,0,0),rgb(120,60,50),rgb(50,150,120),rgb(120,100,200)]),
                         GaussianBlur => frame.gaussian_blur_3x3(&mut target),
-                        BoxBlur => frame.box_blur(&mut target, ((((game.get_mouse_location().x as usize * 255 * 49 / game.size().x.pow(2) as usize)/2)*2 + 1)).min((game.size().x/2) as usize * 2 - 1).max(3)),
+                        BoxBlur => frame.efficient_box_blur(&mut target, &mut temp, ((((game.get_mouse_location().x as usize * 255 * 49 / game.size().x.pow(2) as usize)/2)*2 + 1)).min((game.size().x/2) as usize * 2 - 1).max(3)),
                         Emboss => frame.emboss(&mut target),
                         Outline => frame.outline(&mut target),
                         GreyScale => frame.greyscale(&mut target),
